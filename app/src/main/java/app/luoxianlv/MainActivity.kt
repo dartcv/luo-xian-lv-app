@@ -116,6 +116,13 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (android.os.Build.VERSION.SDK_INT >= 33 && repository.floatingEnabled &&
+            MusicAccessibilityService.isEnabled(this) &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED &&
+            !appPrefs.getBoolean("notification_permission_asked", false)) {
+            appPrefs.edit().putBoolean("notification_permission_asked", true).apply()
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1201)
+        }
         // 无障碍服务可能在本应用暂停期间被启用；回到前台时按持久化偏好重新对齐悬浮窗
         MusicAccessibilityService.instance?.showFloating(repository.floatingEnabled)
         hotUpdates.check { runOnUiThread { AppEvents.notifyLibraryChanged() } }

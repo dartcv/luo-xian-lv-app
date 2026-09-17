@@ -3,6 +3,7 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.accessibilityservice.GestureDescription
 import android.content.Context
+import android.content.Intent
 import android.hardware.display.DisplayManager
 import android.graphics.Bitmap
 import android.graphics.Path
@@ -186,7 +187,7 @@ class MusicAccessibilityService : AccessibilityService() {
                 floating.refresh()
             }
         }
-        if (repository.floatingEnabled) handler.postDelayed({ floating.show() }, 250)
+        if (repository.floatingEnabled) handler.postDelayed({ if (repository.floatingEnabled) showFloating(true) }, 250)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
@@ -194,6 +195,7 @@ class MusicAccessibilityService : AccessibilityService() {
     override fun onInterrupt() = pause()
 
     override fun onDestroy() {
+        stopService(Intent(this, PlaybackForegroundService::class.java))
         getSystemService(DisplayManager::class.java).unregisterDisplayListener(displayListener)
         playing = false
         generation++
@@ -349,7 +351,16 @@ class MusicAccessibilityService : AccessibilityService() {
 
     fun showFloating(enabled: Boolean) {
         repository.floatingEnabled = enabled
-        if (enabled) floating.show() else floating.hide()
+        if (enabled) {
+            floating.show()
+            runCatching {
+                if (Build.VERSION.SDK_INT >= 26) startForegroundService(Intent(this, PlaybackForegroundService::class.java))
+                else startService(Intent(this, PlaybackForegroundService::class.java))
+            }.onFailure { Log.w(TAG, "启动播放前台服务失败", it) }
+        } else {
+            floating.hide()
+            stopService(Intent(this, PlaybackForegroundService::class.java))
+        }
     }
 
     fun reloadConfig() {

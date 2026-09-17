@@ -166,7 +166,6 @@ class MusicAccessibilityService : AccessibilityService() {
     private val next = Runnable { drive() }
 
     override fun onServiceConnected() {
-        super.onServiceConnected()
         repository = SongRepository(this)
         keys = ConfigStore.load(this)
         song = repository.selected()

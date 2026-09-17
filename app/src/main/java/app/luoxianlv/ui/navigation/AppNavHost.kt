@@ -215,7 +215,14 @@ fun AppNavHost(appUpdates: AppUpdateViewModel = viewModel()) {
                                     LoginScreen(
                                         onBack = { subPage = null },
                                         onShushuLogin = { updater.startShushuLogin(activity) },
-                                        onRegister = { subPage = Routes.REGISTER },
+                                        onRegister = {
+                                            runCatching {
+                                                activity.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                                                    android.net.Uri.parse("https://luoxianlv.com/login?mode=register")))
+                                            }.onFailure {
+                                                android.widget.Toast.makeText(activity, "无法打开浏览器，请访问 luoxianlv.com 注册", android.widget.Toast.LENGTH_LONG).show()
+                                            }
+                                        },
                                         snackbarHostState = snackbarHostState,
                                     )
                                 }
@@ -278,4 +285,3 @@ fun AppNavHost(appUpdates: AppUpdateViewModel = viewModel()) {
         }
     }
 }
-

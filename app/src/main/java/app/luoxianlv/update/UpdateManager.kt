@@ -109,12 +109,7 @@ class UpdateManager(
         background(onResult) {
             val root =
                 JSONObject(postJson("$baseUrl/api/auth/login", JSONObject().put("account", account).put("password", password).toString()))
-            val data = root.optJSONObject("data") ?: root
-            val access = data.optString("access_token").trim()
-            require(access.isNotEmpty()) { root.optString("message", "登录失败") }
-            LoginResult(
-                AccountSession(access, data.optString("refresh_token"), data.optJSONObject("user")?.optString("nickname").orEmpty()),
-            )
+            LoginResult(parseAccountSession(root))
         }
     }
 
@@ -137,12 +132,7 @@ class UpdateManager(
                     .put("code", code)
                     .put("nickname", nickname)
             val root = JSONObject(postJson("$baseUrl/api/auth/register", body.toString()))
-            val data = root.optJSONObject("data") ?: root
-            val access = data.optString("access_token").trim()
-            require(access.isNotEmpty()) { root.optString("message", "注册失败") }
-            LoginResult(
-                AccountSession(access, data.optString("refresh_token"), data.optJSONObject("user")?.optString("nickname").orEmpty()),
-            )
+            LoginResult(parseAccountSession(root))
         }
     }
 

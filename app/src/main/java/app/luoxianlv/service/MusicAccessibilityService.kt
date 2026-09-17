@@ -3,6 +3,7 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.accessibilityservice.GestureDescription
 import android.content.Context
+import android.hardware.display.DisplayManager
 import android.graphics.Bitmap
 import android.graphics.Path
 import android.graphics.Point
@@ -13,7 +14,6 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.view.Display
-import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityManager
 import app.luoxianlv.core.playback.PlaybackTimeline
@@ -68,6 +68,26 @@ class MusicAccessibilityService : AccessibilityService() {
     private var gestureFailure: String? = null
     private var halfToneOn = false
     private var pitchMode = PlayMode.NATURAL
+    private var playbackDisplay: Triple<Int, Int, Int>? = null
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) = Unit
+        override fun onDisplayRemoved(displayId: Int) = Unit
+        override fun onDisplayChanged(displayId: Int) {
+            if (displayId == Display.DEFAULT_DISPLAY && (playing || preparing) && playbackDisplay != displayState()) {
+                pause()
+                error = "屏幕方向已变化，请重新点击播放"
+                floating.refresh()
+            }
+        }
+    }
+
+    private fun displayState(): Triple<Int, Int, Int> {
+        val display = getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
+        val size = Point()
+        @Suppress("DEPRECATION")
+        display.getRealSize(size)
+        return Triple(size.x, size.y, display.rotation)
+    }
     val durationMs get() = timeline.durationMs
     val positionMs get() = (baseMs + if (playing) ((SystemClock.uptimeMillis() - anchor) * speed).toLong() else 0).coerceIn(0, durationMs)
     val modeLabel get() = pitchMode.label + if (halfToneOn) " · 半音" else ""
@@ -82,6 +102,7 @@ class MusicAccessibilityService : AccessibilityService() {
         floating = FloatingControls(this)
         hotUpdates = HotUpdateCoordinator(this, repository)
         instance = this
+        getSystemService(DisplayManager::class.java).registerDisplayListener(displayListener, handler)
         // Content updates are intentionally silent and run whenever the
         // accessibility service reconnects. Updated songs/layouts are picked
         // up by the existing repository and calibration store immediately.
@@ -100,6 +121,7 @@ class MusicAccessibilityService : AccessibilityService() {
     override fun onInterrupt() = pause()
 
     override fun onDestroy() {
+        getSystemService(DisplayManager::class.java).unregisterDisplayListener(displayListener)
         playing = false
         generation++
         handler.removeCallbacksAndMessages(null)
@@ -131,11 +153,13 @@ class MusicAccessibilityService : AccessibilityService() {
         // other aspect ratios) and read back the pitch state in case the user
         // toggled 半音/升降调 directly in the game. Screenshot needs API 30;
         // below that the stored layout is used as before.
+        playbackDisplay = displayState()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             preparing = true
             val token = ++generation
             floating.refresh()
-            syncWithScreen { recognized ->
+            syncWithScreen(token) { recognized ->
+                if (token != generation) return@syncWithScreen
                 preparing = false
                 if (!recognized) Log.w(TAG, "按键识别未成功，沿用已配置位置")
                 if (token == generation) startPlaying() else floating.refresh()
@@ -156,7 +180,7 @@ class MusicAccessibilityService : AccessibilityService() {
 
     /** Takes a screenshot, recognizes the keyboard, persists the layout and
      * syncs the pitch state. The callback runs on the main thread. */
-    private fun syncWithScreen(done: (Boolean) -> Unit) {
+    private fun syncWithScreen(token: Int, done: (Boolean) -> Unit) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             done(false)
             return
@@ -166,6 +190,15 @@ class MusicAccessibilityService : AccessibilityService() {
             mainExecutor,
             object : TakeScreenshotCallback {
                 override fun onSuccess(screenshot: ScreenshotResult) {
+                    val currentDisplay = displayState()
+                    if (token != generation || playbackDisplay != currentDisplay ||
+                        screenshot.hardwareBuffer.width != currentDisplay.first ||
+                        screenshot.hardwareBuffer.height != currentDisplay.second) {
+                        screenshot.hardwareBuffer.close()
+                        if (token == generation) pause()
+                        done(false)
+                        return
+                    }
                     val hardware = Bitmap.wrapHardwareBuffer(screenshot.hardwareBuffer, screenshot.colorSpace)
                     screenshot.hardwareBuffer.close()
                     val bitmap = hardware?.copy(Bitmap.Config.ARGB_8888, false)
@@ -231,16 +264,8 @@ class MusicAccessibilityService : AccessibilityService() {
     }
 
     fun screenBounds(): Rect {
-        val wm = getSystemService(WINDOW_SERVICE) as WindowManager
-        // maximumWindowMetrics may keep the other orientation on MuMu and
-        // multi-display devices. Gestures must use the display currently
-        // receiving touch input, otherwise proportional points can fall
-        // outside the active screen and dispatchGesture is cancelled.
-        if (Build.VERSION.SDK_INT >= 30) return wm.currentWindowMetrics.bounds
-        val size = Point()
-        @Suppress("DEPRECATION")
-        wm.defaultDisplay.getRealSize(size)
-        return Rect(0, 0, size.x, size.y)
+        val (width, height) = displayState()
+        return Rect(0, 0, width, height)
     }
 
     private fun drive() {
@@ -335,7 +360,13 @@ class MusicAccessibilityService : AccessibilityService() {
         active: () -> Boolean,
         done: (Boolean) -> Unit,
     ) {
-        val bounds = screenBounds()
+        val currentDisplay = displayState()
+        if (!playing || !active() || playbackDisplay != currentDisplay) {
+            gestureFailure = "播放已停止或屏幕方向已变化，请重新点击播放"
+            done(false)
+            return
+        }
+        val bounds = Rect(0, 0, currentDisplay.first, currentDisplay.second)
         // Clamp normalized coordinates against the active landscape display.
         // This prevents a stale calibration value or a cutout inset from
         // producing an out-of-bounds gesture that Android cancels.

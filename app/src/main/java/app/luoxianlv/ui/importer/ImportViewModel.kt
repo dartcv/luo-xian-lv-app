@@ -5,7 +5,6 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import app.luoxianlv.core.score.ScoreParser
 import app.luoxianlv.data.SongRepository
 import app.luoxianlv.ui.AppEvents
 import app.luoxianlv.ui.syncSelectionToService
@@ -62,8 +61,7 @@ class ImportViewModel(
                                 repository.addMidi(name.substringBeforeLast('.'), bytes)
                             } else {
                                 require(!name.endsWith(".mid", true) && !name.endsWith(".midi", true)) { "MIDI 文件头无效" }
-                                val text = bytes.toString(Charsets.UTF_8).removePrefix("\uFEFF")
-                                repository.add(name.substringBeforeLast('.'), text, ScoreParser.tempo(text), "简谱")
+                                error("仅支持 MIDI 文件（.mid / .midi）")
                             }
                         }
                     imported

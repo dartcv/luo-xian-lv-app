@@ -32,6 +32,19 @@ class AppReleaseTest {
     @Test fun rejectsMissingChecksum() {
         assertThrows(IllegalArgumentException::class.java) { parseAppRelease(manifest().put("apkSha256", ""), 4, "https://example.com", "oss", false) }
     }
+    @Test fun channelChecksumAndSizeOverrideTopLevel() {
+        val githubSha = "b".repeat(64)
+        val json = manifest().put("channels", JSONObject("""{
+          "oss": {"url":"https://cdn.example.com/app.apk"},
+          "github": {"url":"/api/update/github", "sha256":"$githubSha", "size":200}
+        }"""))
+        val release = parseAppRelease(json, 4, "https://example.com", "oss", false)!!
+        val github = release.sources.first { it.id == "github" }
+        assertEquals(githubSha, github.sha256)
+        assertEquals(200L, github.size)
+        // 老 manifest 渠道不带 sha256 时回退到顶层 apkSha256
+        assertEquals("a".repeat(64), release.sources.first { it.id == "oss" }.sha256)
+    }
     @Test fun releaseDisallowsCleartextAndCredentials() {
         assertThrows(IllegalArgumentException::class.java) { validatedUpdateUrl("http://cdn.example.com/app.apk", "https://example.com", true) }
         assertThrows(IllegalArgumentException::class.java) { validatedUpdateUrl("http://127.0.0.1/a.apk", "https://example.com", false) }

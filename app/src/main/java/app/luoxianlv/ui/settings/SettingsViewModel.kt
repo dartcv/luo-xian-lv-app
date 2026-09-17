@@ -8,6 +8,8 @@ import app.luoxianlv.data.AppearanceStore
 import app.luoxianlv.data.ConfigStore
 import app.luoxianlv.data.KeyLayout
 import app.luoxianlv.data.SessionStore
+import app.luoxianlv.service.KeepAlive
+import app.luoxianlv.service.KeepAliveStatus
 import app.luoxianlv.service.MusicAccessibilityService
 import app.luoxianlv.update.UpdateManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +24,7 @@ data class SettingsUiState(
     /** 注册成功：触发跳转 + Snackbar */
     val registered: Boolean = false,
     val appearance: AppearanceSettings = AppearanceSettings(),
+    val keepAlive: KeepAliveStatus = KeepAliveStatus(false, false, true),
 )
 
 class SettingsViewModel(
@@ -41,6 +44,7 @@ class SettingsViewModel(
             it.copy(
                 session = sessionStore.current(),
                 appearance = AppearanceStore.load(app),
+                keepAlive = KeepAlive.status(app),
             )
         }
 

@@ -150,7 +150,6 @@ fun AppNavHost(appUpdates: AppUpdateViewModel = viewModel()) {
                         Routes.LIBRARY -> {
                             LibraryScreen(
                                 onImport = { subPage = Routes.IMPORT },
-                                onPlatform = { subPage = Routes.PLATFORM },
                                 snackbarHostState = snackbarHostState,
                             )
                         }

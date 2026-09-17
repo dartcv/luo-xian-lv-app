@@ -33,7 +33,7 @@ import app.luoxianlv.ui.components.SnackbarNotice
 import app.luoxianlv.ui.theme.containerBorder
 import app.luoxianlv.ui.theme.containerElevation
 
-/** 发现页：搜索入口 + 热门推荐。 */
+/** 发现页：搜索入口 + 全部公开谱子。 */
 @Composable
 fun DiscoverScreen(
     onSearch: () -> Unit,
@@ -43,7 +43,7 @@ fun DiscoverScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
 
-    LaunchedEffect(Unit) { vm.loadPopular() }
+    LaunchedEffect(Unit) { vm.loadScores() }
     // 下载成功：提示 + 跳回曲库
     SnackbarNotice(state.downloaded?.let { "已下载 $it" }, snackbarHostState) {
         vm.ackDownloaded()
@@ -69,22 +69,12 @@ fun DiscoverScreen(
                 Text("搜索谱子", modifier = Modifier.padding(start = 10.dp))
             }
         }
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 6.dp),
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            Text(
-                "热门推荐",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                "曲库",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        Text(
+            "全部谱子",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 20.dp, bottom = 6.dp),
+        )
         Text(
             state.status,
             style = MaterialTheme.typography.labelMedium,

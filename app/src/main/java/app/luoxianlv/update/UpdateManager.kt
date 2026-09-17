@@ -214,11 +214,12 @@ class UpdateManager(
         }
     }
 
-    fun fetchPopularScores(
+    /** 全部已发布公开谱子（服务端一次性返回，无分页）。 */
+    fun fetchLatestScores(
         accessToken: String? = null,
         onResult: (Result<List<PlatformScore>>) -> Unit,
     ) {
-        background(onResult) { parsePlatformScores(JSONObject(requestText("$baseUrl/api/scores/popular", accessToken))) }
+        background(onResult) { parsePlatformScores(JSONObject(requestText("$baseUrl/api/scores/latest", accessToken))) }
     }
 
     private fun parsePlatformScores(root: JSONObject): List<PlatformScore> {

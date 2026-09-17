@@ -47,7 +47,8 @@ class AppUpdateViewModel(private val app: Application) : AndroidViewModel(app) {
     private var job: Job? = null
     private val baseUrl = BuildConfig.UPDATE_BASE_URL.trimEnd('/')
     private val cacheDir = File(app.cacheDir, "updates").apply { mkdirs() }
-    private fun apk(release: AppRelease) = File(cacheDir, "${release.versionCode}-${release.sha256}.apk")
+    private fun apk(release: AppRelease, source: UpdateSource) =
+        File(cacheDir, "${release.versionCode}-${source.sha256.ifBlank { release.sha256 }}.apk")
 
     fun check(manual: Boolean = false) {
         if (_state.value.checking || _state.value.downloading) return
@@ -100,16 +101,16 @@ class AppUpdateViewModel(private val app: Application) : AndroidViewModel(app) {
         job = viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    val target = apk(release)
-                    if (target.exists() && runCatching { verify(target, release) }.isSuccess) return@withContext
-                    if (target.exists()) check(target.delete()) { "无法清理失效的更新包，请重试" }
                     val sources = release.sources.sortedBy { if (it.id == selected) 0 else 1 }
                     var failure: Exception? = null
                     for (source in sources) {
                         coroutineContext.ensureActive()
+                        val target = apk(release, source)
+                        if (target.exists() && runCatching { verify(target, release, source) }.isSuccess) return@withContext
+                        if (target.exists()) check(target.delete()) { "无法清理失效的更新包，请重试" }
                         _state.update { it.copy(source = source.label, progress = 0f) }
                         try {
-                            downloadFile(source.url, target, release)
+                            downloadFile(source.url, target, release, source)
                             return@withContext
                         } catch (e: Exception) {
                             coroutineContext.ensureActive()
@@ -127,7 +128,7 @@ class AppUpdateViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private suspend fun downloadFile(url: String, target: File, release: AppRelease) {
+    private suspend fun downloadFile(url: String, target: File, release: AppRelease, source: UpdateSource) {
         val partial = File(cacheDir, target.name + ".part")
         var connection: HttpURLConnection? = null
         try {
@@ -144,7 +145,7 @@ class AppUpdateViewModel(private val app: Application) : AndroidViewModel(app) {
             }
             val active = requireNotNull(connection)
             check(active.responseCode == 200) { "下载失败 (${active.responseCode})，请重试或切换下载源" }
-            val length = release.size.takeIf { it > 0 } ?: active.contentLengthLong
+            val length = source.size.takeIf { it > 0 } ?: release.size.takeIf { it > 0 } ?: active.contentLengthLong
             active.inputStream.use { input ->
                 partial.outputStream().use { output ->
                     val bytes = ByteArray(64 * 1024)
@@ -160,7 +161,7 @@ class AppUpdateViewModel(private val app: Application) : AndroidViewModel(app) {
                     }
                 }
             }
-            verify(partial, release)
+            verify(partial, release, source)
             check(partial.renameTo(target)) { "无法保存安装包" }
         } finally {
             connection?.disconnect()
@@ -168,14 +169,16 @@ class AppUpdateViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun verify(file: File, release: AppRelease) {
-        if (release.size > 0) require(file.length() == release.size) { "更新包大小不一致，请重试" }
+    private fun verify(file: File, release: AppRelease, source: UpdateSource) {
+        val expectedSize = source.size.takeIf { it > 0 } ?: release.size
+        if (expectedSize > 0) require(file.length() == expectedSize) { "更新包大小不一致，请重试" }
+        val expectedSha = source.sha256.ifBlank { release.sha256 }
         val hash = MessageDigest.getInstance("SHA-256")
         file.inputStream().use { input ->
             val bytes = ByteArray(64 * 1024)
             while (true) { val size = input.read(bytes); if (size < 0) break; hash.update(bytes, 0, size) }
         }
-        require(hash.digest().joinToString("") { "%02x".format(it) } == release.sha256) { "更新包校验失败，请重试" }
+        require(hash.digest().joinToString("") { "%02x".format(it) } == expectedSha) { "更新包校验失败，请重试" }
         val flags = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
         val info = app.packageManager.getPackageArchiveInfo(file.path, flags) ?: error("更新文件不是有效 APK")
         val installed = app.packageManager.getPackageInfo(app.packageName, flags)
@@ -198,7 +201,8 @@ class AppUpdateViewModel(private val app: Application) : AndroidViewModel(app) {
                 activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${app.packageName}")))
                 return
             }
-            val uri = FileProvider.getUriForFile(app, "${app.packageName}.updates", apk(release))
+            val source = release.sources.firstOrNull { it.id == _state.value.selectedSource } ?: release.sources.first()
+            val uri = FileProvider.getUriForFile(app, "${app.packageName}.updates", apk(release, source))
             activity.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
             _state.update { it.copy(needsPermission = false, error = null) }

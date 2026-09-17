@@ -15,7 +15,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -57,7 +56,6 @@ import app.luoxianlv.ui.theme.OnBackdropContent
 @Composable
 fun LibraryScreen(
     onImport: () -> Unit,
-    onPlatform: () -> Unit,
     snackbarHostState: SnackbarHostState,
     vm: LibraryViewModel = viewModel(),
 ) {
@@ -85,14 +83,7 @@ fun LibraryScreen(
                 onClick = onImport,
                 icon = Icons.Filled.FileUpload,
                 compact = true,
-                modifier = Modifier.weight(1f),
-            )
-            ActionPill(
-                label = "平台下载",
-                onClick = onPlatform,
-                icon = Icons.Filled.Download,
-                compact = true,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
             )
         }
         Spacer(modifier = Modifier.height(12.dp))

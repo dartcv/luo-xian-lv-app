@@ -15,6 +15,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,11 +25,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.luoxianlv.data.AccountSession
+import app.luoxianlv.service.KeepAlive
 import app.luoxianlv.ui.components.ErrorDialogHost
 import app.luoxianlv.ui.components.NavBarClearance
 import app.luoxianlv.ui.components.PageTitle
@@ -49,8 +55,18 @@ fun SettingsScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     var showAppearance by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     LaunchedEffect(Unit) { vm.refresh() }
+    // 从系统授权页返回时刷新保活状态（电池白名单 / 通知权限都在系统页里改）
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) vm.refresh()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     SnackbarNotice(state.message, snackbarHostState, vm::consumeMessage)
 
     LazyColumn(
@@ -84,6 +100,35 @@ fun SettingsScreen(
                         onCheckedChange = vm::setSnowEnabled,
                         summary = "从屏幕上方飘落微小雪花",
                     )
+                }
+                PreferenceDivider()
+                PreferenceSection("后台运行保护") {
+                    PreferenceItem(
+                        title = "电池优化白名单",
+                        summary =
+                            if (state.keepAlive.batteryExempt) {
+                                "已允许 · 切后台或息屏后不易被杀"
+                            } else {
+                                "未允许 · 权限丢失、悬浮窗消失多半因为它"
+                            },
+                    ) { KeepAlive.requestBatteryExemption(context) }
+                    if (Build.VERSION.SDK_INT >= 33) {
+                        PreferenceDivider()
+                        PreferenceItem(
+                            title = "播放通知权限",
+                            summary =
+                                if (state.keepAlive.notificationsGranted) {
+                                    "已授予 · 悬浮窗保活通知正常显示"
+                                } else {
+                                    "未授予 · 常驻通知不显示，建议允许"
+                                },
+                        ) { KeepAlive.openNotificationSettings(context) }
+                    }
+                    PreferenceDivider()
+                    PreferenceItem(
+                        title = "自启动与后台管理",
+                        summary = "红魔/小米/华为等 ROM 需额外允许自启动，否则会反复要权限",
+                    ) { KeepAlive.openAutoStartSettings(context) }
                 }
                 PreferenceDivider()
                 PreferenceSection("关于") {

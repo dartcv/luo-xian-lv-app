@@ -1,7 +1,6 @@
 package app.luoxianlv
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
@@ -10,6 +9,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -18,6 +21,7 @@ import androidx.compose.ui.Modifier
 import app.luoxianlv.data.AppearanceStore
 import app.luoxianlv.data.DisclaimerStore
 import app.luoxianlv.data.SongRepository
+import app.luoxianlv.service.KeepAlive
 import app.luoxianlv.service.MusicAccessibilityService
 import app.luoxianlv.ui.AppEvents
 import app.luoxianlv.ui.components.DisclaimerScreen
@@ -38,6 +42,7 @@ class MainActivity : AppCompatActivity() {
     private val oauthUpdater by lazy { UpdateManager(this) }
     private lateinit var appUpdates: AppUpdateViewModel
     private var showOnboarding by mutableStateOf(false)
+    private var showBatteryPrompt by mutableStateOf(false)
     private var disclaimerAccepted by mutableStateOf(true)
     private lateinit var disclaimerText: String
     override fun onCreate(state: Bundle?) {
@@ -82,6 +87,19 @@ class MainActivity : AppCompatActivity() {
                                     startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                                 },
                                 onLater = ::markOnboardingDone,
+                            )
+                        }
+                        if (showBatteryPrompt) {
+                            BatteryExemptionDialog(
+                                onAllow = {
+                                    markBatteryAsked()
+                                    KeepAlive.requestBatteryExemption(this@MainActivity)
+                                    showBatteryPrompt = false
+                                },
+                                onLater = {
+                                    markBatteryAsked()
+                                    showBatteryPrompt = false
+                                },
                             )
                         }
 
@@ -131,20 +149,42 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** 无障碍开启后，引导一次「忽略电池优化」：防 Doze/OEM 后台清理把服务和悬浮窗杀掉。
-     * 只问一次，拒绝后不再打扰。 */
+     * 先弹应用内说明再跳系统授权页，只问一次；入口常驻在设置 → 后台运行保护。 */
     private fun requestBatteryExemptionOnce() {
         if (!MusicAccessibilityService.isEnabled(this)) return
         val pm = getSystemService(PowerManager::class.java) ?: return
         if (pm.isIgnoringBatteryOptimizations(packageName)) return
         if (appPrefs.getBoolean("battery_exemption_asked", false)) return
-        appPrefs.edit().putBoolean("battery_exemption_asked", true).apply()
-        runCatching {
-            startActivity(
-                Intent(
-                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                    Uri.parse("package:$packageName"),
-                ),
-            )
-        }
+        showBatteryPrompt = true
     }
+
+    private fun markBatteryAsked() {
+        appPrefs.edit().putBoolean("battery_exemption_asked", true).apply()
+    }
+}
+
+/** 电池优化白名单引导：先讲清楚为什么要开，用户才不容易在系统弹窗里点「不允许」。 */
+@Composable
+private fun BatteryExemptionDialog(
+    onAllow: () -> Unit,
+    onLater: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onLater,
+        title = { Text("防止后台被清理") },
+        text = {
+            Text(
+                "自动演奏依赖无障碍服务和悬浮窗长期在后台运行。" +
+                    "系统省电策略可能会在切后台或息屏后杀掉它们，导致权限反复丢失、悬浮窗消失。" +
+                    "请把落弦律加入电池优化白名单；" +
+                    "红魔、小米等手机还需在「设置 → 后台运行保护」里允许自启动。",
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onAllow) { Text("去允许") }
+        },
+        dismissButton = {
+            TextButton(onClick = onLater) { Text("以后再说") }
+        },
+    )
 }

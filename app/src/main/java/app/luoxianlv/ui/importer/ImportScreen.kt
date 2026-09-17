@@ -33,7 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.luoxianlv.ui.components.ErrorDialogHost
 import app.luoxianlv.ui.components.SnackbarNotice
 
-/** 导入页：SAF 打开文档 → MIDI / 简谱导入。现在是「曲库」的子页面，需要返回入口。 */
+/** 导入页：SAF 打开文档 → MIDI 导入。现在是「曲库」的子页面，需要返回入口。 */
 @Composable
 fun ImportScreen(
     onBack: () -> Unit,
@@ -91,7 +91,7 @@ fun ImportScreen(
                 modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
             )
             Text(
-                "MIDI / 简谱",
+                "仅支持 MIDI 文件（.mid / .midi）",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

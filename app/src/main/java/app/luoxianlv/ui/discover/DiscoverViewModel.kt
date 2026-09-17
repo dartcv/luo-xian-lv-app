@@ -34,16 +34,17 @@ class DiscoverViewModel(
 
     private fun token() = sessionStore.current()?.accessToken
 
-    fun loadPopular() {
+    /** 发现页：加载全部已发布公开谱子（服务端一次性返回，无分页）。 */
+    fun loadScores() {
         _state.update { it.copy(loading = true, status = "正在加载…") }
-        updater.fetchPopularScores(token()) { result ->
+        updater.fetchLatestScores(token()) { result ->
             result
                 .onSuccess { scores ->
                     _state.update {
                         it.copy(
                             loading = false,
-                            scores = scores.take(12),
-                            status = if (scores.isEmpty()) "暂无公开谱子" else "按热度更新",
+                            scores = scores,
+                            status = if (scores.isEmpty()) "暂无公开谱子" else "共 ${scores.size} 首公开谱子",
                         )
                     }
                 }.onFailure { e ->

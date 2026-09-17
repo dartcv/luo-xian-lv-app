@@ -1,0 +1,14 @@
+<resources>
+    <color name="player_bg">#F6F7FB</color>
+    <color name="player_surface">#FFFFFF</color>
+    <color name="player_surface_tint">#EAF3FF</color>
+    <color name="player_primary">#0A84FF</color>
+    <color name="player_primary_dark">#006EDB</color>
+    <color name="player_accent">#18A999</color>
+    <color name="player_text">#17191D</color>
+    <color name="player_text_secondary">#697386</color>
+    <color name="player_divider">#E5E8EF</color>
+    <color name="player_progress_track">#DDE3F2</color>
+    <color name="player_danger">#D95B67</color>
+    <color name="player_white">#FFFFFF</color>
+</resources>

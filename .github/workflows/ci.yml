@@ -15,6 +15,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -27,17 +28,10 @@ jobs:
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
-      - name: Run unit tests
-        run: bash ./gradlew testDebugUnitTest --no-daemon
-
-      - name: Assemble debug APK
-        run: bash ./gradlew assembleDebug --no-daemon
-
-      - name: Verify optimized release build
-        run: bash ./gradlew assembleRelease --no-daemon
+      - name: Test and build APKs
+        run: bash ./gradlew testDebugUnitTest assembleDebug assembleRelease --no-daemon
 
       - name: Upload debug APK
-        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: app-debug

@@ -1,5 +1,7 @@
 .gradle/
 .kotlin/
+__pycache__/
+*.pyc
 .idea/
 build/
 app/build/

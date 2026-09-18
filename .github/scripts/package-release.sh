@@ -16,13 +16,17 @@ apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V |
 aapt=$(find "$ANDROID_HOME/build-tools" -name aapt -type f | sort -V | tail -1)
 signature=$("$apksigner" verify --verbose --print-certs "$apk")
 certificate=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' <<< "$signature")
-test "$certificate" = "$ANDROID_SIGNING_CERT_SHA256"
-test -s app/build/outputs/mapping/release/mapping.txt
+if [ "$certificate" != "$ANDROID_SIGNING_CERT_SHA256" ]; then
+  printf 'Signing certificate mismatch: actual=%s expected=%s\n' "$certificate" "$ANDROID_SIGNING_CERT_SHA256" >&2
+  exit 1
+fi
+test -s app/build/outputs/mapping/release/mapping.txt || { echo 'Missing R8 mapping' >&2; exit 1; }
 badging=$("$aapt" dump badging "$apk")
 code=$(sed -nE "s/^package: .*versionCode='([0-9]+)'.*/\1/p" <<< "$badging")
 version=$(sed -nE "s/^package: .*versionName='([^']+)'.*/\1/p" <<< "$badging")
-[[ "$code" =~ ^[1-9][0-9]*$ ]]
-test "v$version" = "$RELEASE_TAG"
+printf 'APK version: %s (%s); release tag: %s\n' "$version" "$code" "$RELEASE_TAG"
+[[ "$code" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid APK versionCode' >&2; exit 1; }
+test "v$version" = "$RELEASE_TAG" || { echo 'APK version does not match release tag' >&2; exit 1; }
 
 mkdir -p dist
 asset="luoxianlv-${RELEASE_TAG}-release.apk"

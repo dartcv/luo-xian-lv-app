@@ -15,9 +15,10 @@ apk=app/build/outputs/apk/release/app-release.apk
 apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
 aapt=$(find "$ANDROID_HOME/build-tools" -name aapt -type f | sort -V | tail -1)
 signature=$("$apksigner" verify --verbose --print-certs "$apk")
-certificate=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' <<< "$signature")
+certificate=$(sed -nE 's/.*certificate SHA-256 digest[^:]*: ([0-9a-f]+).*/\1/p' <<< "$signature" | head -1)
 if [ "$certificate" != "$ANDROID_SIGNING_CERT_SHA256" ]; then
   printf 'Signing certificate mismatch: actual=%s expected=%s\n' "$certificate" "$ANDROID_SIGNING_CERT_SHA256" >&2
+  printf '%s\n' "$signature" >&2
   exit 1
 fi
 test -s app/build/outputs/mapping/release/mapping.txt || { echo 'Missing R8 mapping' >&2; exit 1; }

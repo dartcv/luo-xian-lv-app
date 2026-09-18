@@ -29,6 +29,7 @@ def upload_and_verify(bucket, apk, object_key, sha):
 
 def main():
     package = json.loads(Path("dist/package.json").read_text())
+    release_notes = json.loads(Path("dist/release-notes.json").read_text())
     apk = Path("dist") / package["asset"]
     sha = hashlib.sha256(apk.read_bytes()).hexdigest()
     size = apk.stat().st_size
@@ -53,7 +54,7 @@ def main():
         "enabled": True, "channel": "stable",
         "latestVersionCode": package["versionCode"], "latestVersionName": package["versionName"],
         "apkUrl": "", "apkSha256": sha, "apkSize": size,
-        "releaseNotes": [f"落弦律 {package['versionName']}，详见 GitHub Release 更新说明"],
+        "releaseNotes": release_notes,
         "mandatory": False, "minSupportedVersionCode": 1,
         "channels": {"oss": {"object": object_key, "sha256": sha, "size": size}},
     }

@@ -22,10 +22,32 @@ data class AppRelease(
     val versionName: String,
     val sha256: String,
     val size: Long,
-    val notes: List<String>,
+    val notes: List<ReleaseNoteSection>,
     val mandatory: Boolean,
     val sources: List<UpdateSource>,
 )
+
+data class ReleaseNoteSection(
+    val title: String,
+    val items: List<String>,
+)
+
+private fun parseReleaseNotes(value: Any?): List<ReleaseNoteSection> {
+    if (value is org.json.JSONArray) {
+        val items = List(value.length()) { value.optString(it).trim() }.filter(String::isNotBlank)
+        return if (items.isEmpty()) emptyList() else listOf(ReleaseNoteSection("更新内容", items))
+    }
+    val root = value as? JSONObject ?: return emptyList()
+    val sections = root.optJSONArray("sections") ?: return emptyList()
+    return List(sections.length()) { index ->
+        val section = sections.optJSONObject(index) ?: JSONObject()
+        val title = section.optString("title").trim().ifBlank { "更新内容" }
+        val items = section.optJSONArray("items")?.let { array ->
+            List(array.length()) { array.optString(it).trim() }.filter(String::isNotBlank)
+        }.orEmpty()
+        ReleaseNoteSection(title, items)
+    }.filter { it.items.isNotEmpty() }
+}
 
 /** Strictly newer APKs only; channel URLs must refer to the same signed artifact. */
 fun parseAppRelease(json: JSONObject, currentCode: Int, baseUrl: String, preferred: String, allowLocal: Boolean): AppRelease? {
@@ -46,9 +68,9 @@ fun parseAppRelease(json: JSONObject, currentCode: Int, baseUrl: String, preferr
         sources += UpdateSource(id, validatedUpdateUrl(url, baseUrl, allowLocal), channelSha, channelSize)
     }
     if (sources.isEmpty()) sources += UpdateSource("oss", validatedUpdateUrl(json.getString("apkUrl"), baseUrl, allowLocal), sha, topSize)
-    val notes = json.optJSONArray("releaseNotes")
+    val notes = parseReleaseNotes(json.opt("releaseNotes"))
     return AppRelease(code, json.getString("latestVersionName"), sha, json.optLong("apkSize", 0),
-        if (notes == null) emptyList() else List(notes.length()) { notes.getString(it) },
+        notes,
         json.optBoolean("mandatory") || currentCode < json.optInt("minSupportedVersionCode", 1), sources)
 }
 

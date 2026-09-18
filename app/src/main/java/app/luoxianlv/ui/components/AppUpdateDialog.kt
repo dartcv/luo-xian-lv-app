@@ -35,7 +35,10 @@ fun AppUpdateDialog(state: AppUpdateState, onDismiss: () -> Unit, onSource: (Str
                 }
                 Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Text("本次更新", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Text(release.notes.joinToString("\n") { "• $it" }.ifBlank { "优化演奏体验与稳定性" }, style = MaterialTheme.typography.bodyMedium)
+                    val noteText = release.notes.joinToString("\n") { section ->
+                        "${section.title}\n${section.items.joinToString("\n") { "• $it" }}"
+                    }.ifBlank { "更新体验与稳定性优化" }
+                    Text(noteText, style = MaterialTheme.typography.bodyMedium)
                     if (release.mandatory) Text("此版本需要更新后继续使用", color = colors.primary, style = MaterialTheme.typography.bodySmall)
                     if (release.sources.size > 1 && !state.ready) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -242,7 +242,7 @@ class AppUpdateViewModel(private val app: Application) : AndroidViewModel(app) {
                     versionName = "${BuildConfig.VERSION_NAME}-demo",
                     sha256 = "0".repeat(64),
                     size = 22L * 1024 * 1024,
-                    notes = listOf("演示弹窗：谱面同步更稳定", "演示弹窗：优化 MIDI 渲染性能", "演示弹窗：修复已知问题"),
+                    notes = listOf(ReleaseNoteSection("演示更新", listOf("谱面同步更稳定", "优化 MIDI 渲染性能", "修复已知问题"))),
                     mandatory = false,
                     sources = listOf(UpdateSource("oss", "https://luoxianlv.com/app-release.apk")),
                 ),

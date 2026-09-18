@@ -51,4 +51,14 @@ class AppReleaseTest {
         assertThrows(IllegalArgumentException::class.java) { validatedUpdateUrl("https://token@example.com/a.apk", "https://example.com", false) }
         assertEquals("http://10.0.2.2:8787/a.apk", validatedUpdateUrl("/a.apk", "http://10.0.2.2:8787", true))
     }
+    @Test fun parsesStructuredReleaseNotesAndLegacyNotes() {
+        val structured = manifest().put("releaseNotes", JSONObject("""
+          {"sections":[{"title":"修复","items":["修复导入闪退"]},{"title":"体验","items":["新增播放诊断"]}]}
+        """))
+        val release = parseAppRelease(structured, 4, "https://example.com", "oss", false)!!
+        assertEquals(listOf("修复", "体验"), release.notes.map { it.title })
+        assertEquals("修复导入闪退", release.notes[0].items.single())
+        val legacy = parseAppRelease(manifest(), 4, "https://example.com", "oss", false)!!
+        assertEquals("更新体验", legacy.notes.single().items.single())
+    }
 }

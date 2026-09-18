@@ -38,6 +38,7 @@ import app.luoxianlv.ui.settings.AboutScreen
 import app.luoxianlv.ui.settings.LoginScreen
 import app.luoxianlv.ui.settings.RegisterScreen
 import app.luoxianlv.ui.settings.SettingsScreen
+import app.luoxianlv.ui.settings.PlaybackDiagnosticsScreen
 import app.luoxianlv.ui.theme.GradientBackdrop
 import app.luoxianlv.update.AppUpdateViewModel
 import app.luoxianlv.update.UpdateManager
@@ -55,7 +56,7 @@ private val tabs = listOf(Routes.HOME, Routes.LIBRARY, Routes.DISCOVER, Routes.S
 
 /** 子页面（覆盖层，不参与手势滑动） */
 private val subPages =
-    listOf(Routes.SEARCH, Routes.PLATFORM, Routes.LOGIN, Routes.REGISTER, Routes.ABOUT, Routes.IMPORT)
+    listOf(Routes.SEARCH, Routes.PLATFORM, Routes.LOGIN, Routes.REGISTER, Routes.ABOUT, Routes.IMPORT, Routes.DIAGNOSTICS)
 
 /** 「我的」在 [tabs] 中的下标：它显示时底部导航栏要隐藏。 */
 private val HOME_INDEX = tabs.indexOf(Routes.HOME)
@@ -166,6 +167,7 @@ fun AppNavHost(appUpdates: AppUpdateViewModel = viewModel()) {
                             SettingsScreen(
                                 onLogin = { subPage = Routes.LOGIN },
                                 onAbout = { subPage = Routes.ABOUT },
+                                onDiagnostics = { subPage = Routes.DIAGNOSTICS },
                                 snackbarHostState = snackbarHostState,
                             )
                         }
@@ -256,6 +258,10 @@ fun AppNavHost(appUpdates: AppUpdateViewModel = viewModel()) {
                                         snackbarHostState = snackbarHostState,
                                     )
                                 }
+                                Routes.DIAGNOSTICS -> PlaybackDiagnosticsScreen(
+                                    onBack = { subPage = null },
+                                    snackbarHostState = snackbarHostState,
+                                )
                             }
                         }
                     }

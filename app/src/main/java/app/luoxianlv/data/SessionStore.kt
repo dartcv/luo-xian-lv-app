@@ -6,6 +6,7 @@ data class AccountSession(
     val accessToken: String,
     val refreshToken: String,
     val nickname: String,
+    val expiresAt: Long = 0L,
 )
 
 class SessionStore(
@@ -15,7 +16,7 @@ class SessionStore(
 
     fun current(): AccountSession? =
         prefs.getString("access", null)?.takeIf { it.isNotBlank() }?.let {
-            AccountSession(it, prefs.getString("refresh", "").orEmpty(), prefs.getString("nickname", "").orEmpty())
+            AccountSession(it, prefs.getString("refresh", "").orEmpty(), prefs.getString("nickname", "").orEmpty(), prefs.getLong("expires_at", 0L))
         }
 
     fun save(session: AccountSession) =
@@ -26,6 +27,7 @@ class SessionStore(
                 session.accessToken,
             ).putString("refresh", session.refreshToken)
             .putString("nickname", session.nickname)
+            .putLong("expires_at", session.expiresAt)
             .apply()
 
     fun clear() = prefs.edit().clear().apply()

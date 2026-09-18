@@ -47,6 +47,7 @@ class AppUpdateViewModel(private val app: Application) : AndroidViewModel(app) {
     private var job: Job? = null
     private val baseUrl = BuildConfig.UPDATE_BASE_URL.trimEnd('/')
     private val cacheDir = File(app.cacheDir, "updates").apply { mkdirs() }
+    init { cleanupCache() }
     private fun apk(release: AppRelease, source: UpdateSource) =
         File(cacheDir, "${release.versionCode}-${source.sha256.ifBlank { release.sha256 }}.apk")
 
@@ -98,6 +99,7 @@ class AppUpdateViewModel(private val app: Application) : AndroidViewModel(app) {
         if (job?.isActive == true) return
         val selected = _state.value.selectedSource
         _state.update { it.copy(downloading = true, error = null, progress = 0f, ready = false) }
+        cleanupCache()
         job = viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
@@ -189,6 +191,14 @@ class AppUpdateViewModel(private val app: Application) : AndroidViewModel(app) {
         val current = if (Build.VERSION.SDK_INT >= 28) installed.signingInfo?.apkContentsSigners else installed.signatures
         require(!incoming.isNullOrEmpty() && !current.isNullOrEmpty() && incoming.toSet() == current.toSet()) {
             "安装包签名不一致，无法覆盖安装"
+        }
+    }
+
+    /** Remove interrupted downloads and retain only the two newest APKs. */
+    private fun cleanupCache() {
+        runCatching {
+            cacheDir.listFiles()?.filter { it.name.endsWith(".part") }?.forEach { it.delete() }
+            cacheDir.listFiles()?.filter { it.extension == "apk" }?.sortedByDescending { it.lastModified() }?.drop(2)?.forEach { it.delete() }
         }
     }
 

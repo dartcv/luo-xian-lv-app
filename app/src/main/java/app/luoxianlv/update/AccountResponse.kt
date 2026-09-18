@@ -11,5 +11,6 @@ internal fun parseAccountSession(root: JSONObject): AccountSession {
         access,
         data.optString("refreshToken").ifBlank { data.optString("refresh_token") },
         data.optJSONObject("user")?.optString("nickname").orEmpty(),
+        System.currentTimeMillis() + (data.optLong("expiresIn", 0L).takeIf { it > 0 } ?: data.optLong("expires_in", 30L * 24 * 3600)) * 1000L,
     )
 }

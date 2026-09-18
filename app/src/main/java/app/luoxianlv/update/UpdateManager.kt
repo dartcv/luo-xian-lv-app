@@ -90,7 +90,7 @@ class UpdateManager(
             val root = JSONObject(postJson("$baseUrl/api/auth/oauth/exchange", JSONObject().put("code", code).put("state", returnedState).put("redirect_uri", "https://luoxianlv.com/login/callback").put("code_verifier", verifier).toString()))
             val access = root.optString("accessToken").ifBlank { root.optString("access_token") }
             require(access.isNotBlank()) { root.optString("message", "鼠鼠登录失败") }
-            LoginResult(AccountSession(access, root.optString("refreshToken"), root.optJSONObject("user")?.optString("nickname").orEmpty()))
+            LoginResult(AccountSession(access, root.optString("refreshToken"), root.optJSONObject("user")?.optString("nickname").orEmpty(), System.currentTimeMillis() + (root.optLong("expiresIn", 0L).takeIf { it > 0 } ?: root.optLong("expires_in", 30L * 24 * 3600)) * 1000L))
         }
     }
 
@@ -365,18 +365,47 @@ class UpdateManager(
     private fun requestBytes(
         url: String,
         accessToken: String?,
+        retryAuth: Boolean = true,
     ): ByteArray {
+        val current = sessionStore.current()
+        val token = if (!accessToken.isNullOrBlank() && current?.accessToken == accessToken && current.expiresAt > 0L && current.expiresAt - System.currentTimeMillis() < 5 * 60 * 1000L) {
+            refreshSession(accessToken)?.accessToken ?: accessToken
+        } else accessToken
         val connection = open(url)
-        if (!accessToken.isNullOrBlank()) connection.setRequestProperty("Authorization", "Bearer $accessToken")
+        if (!token.isNullOrBlank()) connection.setRequestProperty("Authorization", "Bearer $token")
         connection.connect()
         val status = connection.responseCode
         val stream = if (status in 200..299) connection.inputStream else connection.errorStream
         val bytes = stream?.use { it.readBytes() } ?: ByteArray(0)
+        if (status == 401 && retryAuth && !token.isNullOrBlank()) {
+            connection.disconnect()
+            val refreshed = refreshSession(token)
+            if (refreshed != null) return requestBytes(url, refreshed.accessToken, false)
+        }
         if (status !in 200..299) {
             val detail = bytes.toString(Charsets.UTF_8).take(160).trim()
             error(if (detail.isBlank()) "HTTP $status" else "HTTP $status: $detail")
         }
         return bytes
+    }
+
+    private fun refreshSession(previous: String): AccountSession? = runCatching {
+        val root = JSONObject(postJsonWithAuth("$baseUrl/api/auth/refresh", previous))
+        parseAccountSession(root).also { sessionStore.save(it) }
+    }.getOrElse {
+        sessionStore.clear()
+        null
+    }
+
+    private fun postJsonWithAuth(url: String, token: String): String {
+        val connection = open(url).apply {
+            requestMethod = "POST"
+            doOutput = true
+            setRequestProperty("Authorization", "Bearer $token")
+            setRequestProperty("Content-Type", "application/json")
+        }
+        connection.outputStream.use { it.write("{}".toByteArray()) }
+        return readResponse(connection)
     }
 
     private fun postJson(

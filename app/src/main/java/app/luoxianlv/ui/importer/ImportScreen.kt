@@ -97,7 +97,7 @@ fun ImportScreen(
                 textAlign = TextAlign.Center,
             )
             Button(
-                onClick = { launcher.launch(arrayOf("*/*")) },
+                onClick = { launcher.launch(arrayOf("audio/midi", "audio/x-midi", "audio/mid", "application/x-midi", "application/octet-stream")) },
                 enabled = !state.importing,
                 modifier = Modifier.fillMaxWidth().padding(top = 30.dp),
             ) {

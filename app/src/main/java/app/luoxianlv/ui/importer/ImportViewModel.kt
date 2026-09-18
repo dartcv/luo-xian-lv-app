@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
 
 data class ImportUiState(
     val importing: Boolean = false,
@@ -29,7 +31,8 @@ class ImportViewModel(
     val state = _state.asStateFlow()
 
     fun import(uri: Uri) {
-        _state.update { it.copy(importing = true) }
+        if (_state.value.importing) return
+        _state.update { it.copy(importing = true, error = null) }
         viewModelScope.launch(Dispatchers.IO) {
             val read =
                 runCatching {
@@ -39,17 +42,10 @@ class ImportViewModel(
                             .query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
                             ?.use { if (it.moveToFirst()) it.getString(0) else null }
                             ?: "导入乐曲"
+                    validateMidiName(name)
                     val bytes =
                         resolver.openInputStream(uri)?.use { stream ->
-                            val output = java.io.ByteArrayOutputStream()
-                            val buffer = ByteArray(8192)
-                            while (true) {
-                                val size = stream.read(buffer)
-                                if (size < 0) break
-                                require(output.size() + size <= 4 * 1024 * 1024) { "文件不能超过 4 MB" }
-                                output.write(buffer, 0, size)
-                            }
-                            output.toByteArray()
+                            readMidi(name, stream)
                         } ?: error("无法读取文件")
                     name to bytes
                 }
@@ -57,23 +53,20 @@ class ImportViewModel(
                 .onSuccess { (name, bytes) ->
                     val imported =
                         runCatching {
-                            if (bytes.take(4) == listOf<Byte>(77, 84, 104, 100)) {
-                                repository.addMidi(name.substringBeforeLast('.'), bytes)
-                            } else {
-                                require(!name.endsWith(".mid", true) && !name.endsWith(".midi", true)) { "MIDI 文件头无效" }
-                                error("仅支持 MIDI 文件（.mid / .midi）")
-                            }
+                            repository.addMidi(name.substringBeforeLast('.'), bytes)
                         }
                     imported
                         .onSuccess { song ->
-                            syncSelectionToService(song)
+                            withContext(Dispatchers.Main) { syncSelectionToService(song) }
                             // 导入会改变歌单，曲库页需要重新读取
                             AppEvents.notifyLibraryChanged()
                             _state.update { it.copy(importing = false, importedTitle = song.title) }
                         }.onFailure { e ->
+                            if (e is CancellationException) throw e
                             _state.update { it.copy(importing = false, error = e.message ?: "文件格式无效") }
                         }
                 }.onFailure { e ->
+                    if (e is CancellationException) throw e
                     _state.update { it.copy(importing = false, error = e.message ?: "无法读取文件") }
                 }
         }

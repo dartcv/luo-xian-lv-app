@@ -25,9 +25,17 @@ import app.luoxianlv.data.KeyLayout
 import app.luoxianlv.data.Song
 import app.luoxianlv.data.SongRepository
 import app.luoxianlv.profile.ScreenRecognizer
-import app.luoxianlv.update.HotUpdateCoordinator
 
 class MusicAccessibilityService : AccessibilityService() {
+    data class Diagnostics(
+        val serviceEnabled: Boolean,
+        val playing: Boolean,
+        val preparing: Boolean,
+        val songTitle: String,
+        val display: Triple<Int, Int, Int>?,
+        val error: String?,
+        val gestureFailure: String?,
+    )
     companion object {
         var instance: MusicAccessibilityService? = null
             private set
@@ -48,7 +56,6 @@ class MusicAccessibilityService : AccessibilityService() {
     private lateinit var repository: SongRepository
     private lateinit var keys: KeyLayout
     private lateinit var floating: FloatingControls
-    private lateinit var hotUpdates: HotUpdateCoordinator
     lateinit var song: Song
         private set
     private lateinit var timeline: PlaybackTimeline
@@ -173,20 +180,9 @@ class MusicAccessibilityService : AccessibilityService() {
         timeline = PlaybackTimeline(song.events, song.bpm)
         speed = repository.speed
         floating = FloatingControls(this)
-        hotUpdates = HotUpdateCoordinator(this, repository)
         instance = this
         getSystemService(DisplayManager::class.java).registerDisplayListener(displayListener, handler)
         handler.post(monitorDisplay)
-        // Content updates are intentionally silent and run whenever the
-        // accessibility service reconnects. Updated songs/layouts are picked
-        // up by the existing repository and calibration store immediately.
-        hotUpdates.check {
-            handler.post {
-                song = repository.selected()
-                timeline = PlaybackTimeline(song.events, song.bpm)
-                floating.refresh()
-            }
-        }
         if (repository.floatingEnabled) handler.postDelayed({ if (repository.floatingEnabled) showFloating(true) }, 250)
     }
 
@@ -372,6 +368,16 @@ class MusicAccessibilityService : AccessibilityService() {
         return Rect(0, 0, width, height)
     }
 
+    fun diagnostics(): Diagnostics = Diagnostics(
+        serviceEnabled = isEnabled(this),
+        playing = playing,
+        preparing = preparing,
+        songTitle = if (::song.isInitialized) song.title else "未选择",
+        display = runCatching { displayState() }.getOrNull(),
+        error = error,
+        gestureFailure = gestureFailure,
+    )
+
     private fun drive() {
         handler.removeCallbacks(next)
         if (!playing || busy) return
@@ -508,7 +514,8 @@ class MusicAccessibilityService : AccessibilityService() {
         // Dispatch one complete static stroke per note. Splitting a long note
         // across several dispatchGesture calls is not supported consistently
         // by Android/OEM accessibility implementations and causes cancellation.
-        val length = duration.coerceAtLeast(1)
+        val length = duration.coerceIn(1, GestureDescription.getMaxGestureDuration())
+        try {
         val stroke = GestureDescription.StrokeDescription(path, 0, length, false)
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
         val accepted =
@@ -531,6 +538,11 @@ class MusicAccessibilityService : AccessibilityService() {
             )
         if (!accepted) {
             gestureFailure = "系统拒绝手势 (${px.toInt()},${py.toInt()} / ${bounds.width()}x${bounds.height()})"
+            finish(false)
+        }
+        } catch (failure: Exception) {
+            Log.w(TAG, "无法发送播放手势", failure)
+            gestureFailure = "无法发送播放手势，请重新开启无障碍后重试"
             finish(false)
         }
     }

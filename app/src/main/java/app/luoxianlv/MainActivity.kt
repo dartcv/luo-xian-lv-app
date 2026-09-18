@@ -23,13 +23,11 @@ import app.luoxianlv.data.DisclaimerStore
 import app.luoxianlv.data.SongRepository
 import app.luoxianlv.service.KeepAlive
 import app.luoxianlv.service.MusicAccessibilityService
-import app.luoxianlv.ui.AppEvents
 import app.luoxianlv.ui.components.DisclaimerScreen
 import app.luoxianlv.ui.components.OnboardingDialog
 import app.luoxianlv.ui.components.Snowfall
 import app.luoxianlv.ui.navigation.AppNavHost
 import app.luoxianlv.ui.theme.LuoXianLvTheme
-import app.luoxianlv.update.HotUpdateCoordinator
 import app.luoxianlv.update.UpdateManager
 import app.luoxianlv.data.SessionStore
 import app.luoxianlv.update.AppUpdateViewModel
@@ -38,7 +36,6 @@ import androidx.lifecycle.ViewModelProvider
 /** Compose 单 Activity 入口：只负责挂 UI 树与生命周期级的服务/热更新对齐。 */
 class MainActivity : AppCompatActivity() {
     private lateinit var repository: SongRepository
-    private lateinit var hotUpdates: HotUpdateCoordinator
     private val oauthUpdater by lazy { UpdateManager(this) }
     private lateinit var appUpdates: AppUpdateViewModel
     private var showOnboarding by mutableStateOf(false)
@@ -50,7 +47,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(state)
         enableEdgeToEdge()
         repository = SongRepository(this)
-        hotUpdates = HotUpdateCoordinator(this, repository)
         appUpdates = ViewModelProvider(this)[AppUpdateViewModel::class.java]
         AppearanceStore.initialize(this)
         // 免责协议是启动第一道门：已同意文本的 SHA-256 与当前 assets 里的协议不一致
@@ -145,7 +141,6 @@ class MainActivity : AppCompatActivity() {
         }
         // 无障碍服务可能在本应用暂停期间被启用；回到前台时按持久化偏好重新对齐悬浮窗
         MusicAccessibilityService.instance?.showFloating(repository.floatingEnabled)
-        hotUpdates.check { runOnUiThread { AppEvents.notifyLibraryChanged() } }
         if (disclaimerAccepted) {
             if (!updateCheckOnOpenDone) checkUpdatesAfterDisclaimer()
             else appUpdates.onResume(this)

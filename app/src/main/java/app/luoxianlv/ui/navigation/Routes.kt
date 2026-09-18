@@ -15,6 +15,7 @@ object Routes {
     const val LOGIN = "login"
     const val REGISTER = "register"
     const val ABOUT = "about"
+    const val DIAGNOSTICS = "diagnostics"
 
     /** 导入：从顶级 Tab 降为「曲库」里的子页面。 */
     const val IMPORT = "import"

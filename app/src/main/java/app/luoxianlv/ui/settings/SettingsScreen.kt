@@ -54,6 +54,7 @@ import app.luoxianlv.ui.components.SnackbarNotice
 fun SettingsScreen(
     onLogin: () -> Unit,
     onAbout: () -> Unit,
+    onDiagnostics: () -> Unit,
     snackbarHostState: SnackbarHostState,
     vm: SettingsViewModel = viewModel(),
 ) {
@@ -113,6 +114,8 @@ fun SettingsScreen(
                 }
                 PreferenceDivider()
                 PreferenceSection("后台运行保护") {
+                    PreferenceItem("播放诊断", "查看最近一次识别和手势状态", onClick = onDiagnostics)
+                    PreferenceDivider()
                     PreferenceItem(
                         title = "电池优化白名单",
                         summary =

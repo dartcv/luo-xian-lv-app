@@ -3,6 +3,7 @@ package app.luoxianlv.update
 import android.app.Activity
 import android.app.Application
 import android.content.Intent
+import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -175,24 +176,55 @@ class AppUpdateViewModel(private val app: Application) : AndroidViewModel(app) {
         val expectedSize = source.size.takeIf { it > 0 } ?: release.size
         if (expectedSize > 0) require(file.length() == expectedSize) { "更新包大小不一致，请重试" }
         val expectedSha = source.sha256.ifBlank { release.sha256 }
+        require(sha256Hex(file) == expectedSha) { "更新包校验失败，请重试" }
+        val info = signingQueryFlags().firstNotNullOfOrNull {
+            app.packageManager.getPackageArchiveInfo(file.path, it)
+        } ?: error("更新文件不是有效 APK")
+        require(info.packageName == app.packageName) { "安装包不属于落弦律" }
+        val code = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
+        require(code == release.versionCode.toLong() && code > BuildConfig.VERSION_CODE) { "安装包版本与更新信息不一致" }
+        val incoming = signerDigests { pm, flags -> pm.getPackageArchiveInfo(file.path, flags) }
+        val current = signerDigests { pm, flags -> pm.getPackageInfo(app.packageName, flags) }
+        require(incoming != null && current != null && incoming == current) {
+            "安装包签名不一致，无法覆盖安装"
+        }
+    }
+
+    // 部分 ROM 上归档解析拿不到 signingInfo，回退到 GET_SIGNATURES 重查；
+    // 证书按 SHA-256 摘要比对，避免证书字节重编码导致相等性误判。
+    private fun signingQueryFlags(): List<Int> = if (Build.VERSION.SDK_INT >= 28) {
+        listOf(PackageManager.GET_SIGNING_CERTIFICATES, PackageManager.GET_SIGNATURES)
+    } else {
+        listOf(PackageManager.GET_SIGNATURES)
+    }
+
+    private fun signerDigests(query: (PackageManager, Int) -> PackageInfo?): Set<String>? {
+        for (flags in signingQueryFlags()) {
+            val signers = query(app.packageManager, flags)?.let { archive ->
+                if (Build.VERSION.SDK_INT >= 28) {
+                    archive.signingInfo?.apkContentsSigners?.takeIf { it.isNotEmpty() } ?: archive.signatures
+                } else {
+                    archive.signatures
+                }
+            }
+            if (!signers.isNullOrEmpty()) {
+                return signers.mapTo(HashSet()) { sha256Hex(it.toByteArray()) }
+            }
+        }
+        return null
+    }
+
+    private fun sha256Hex(file: File): String {
         val hash = MessageDigest.getInstance("SHA-256")
         file.inputStream().use { input ->
             val bytes = ByteArray(64 * 1024)
             while (true) { val size = input.read(bytes); if (size < 0) break; hash.update(bytes, 0, size) }
         }
-        require(hash.digest().joinToString("") { "%02x".format(it) } == expectedSha) { "更新包校验失败，请重试" }
-        val flags = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
-        val info = app.packageManager.getPackageArchiveInfo(file.path, flags) ?: error("更新文件不是有效 APK")
-        val installed = app.packageManager.getPackageInfo(app.packageName, flags)
-        require(info.packageName == app.packageName) { "安装包不属于落弦律" }
-        val code = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
-        require(code == release.versionCode.toLong() && code > BuildConfig.VERSION_CODE) { "安装包版本与更新信息不一致" }
-        val incoming = if (Build.VERSION.SDK_INT >= 28) info.signingInfo?.apkContentsSigners else info.signatures
-        val current = if (Build.VERSION.SDK_INT >= 28) installed.signingInfo?.apkContentsSigners else installed.signatures
-        require(!incoming.isNullOrEmpty() && !current.isNullOrEmpty() && incoming.toSet() == current.toSet()) {
-            "安装包签名不一致，无法覆盖安装"
-        }
+        return hash.digest().joinToString("") { "%02x".format(it) }
     }
+
+    private fun sha256Hex(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
     /** Remove interrupted downloads and retain only the two newest APKs. */
     private fun cleanupCache() {

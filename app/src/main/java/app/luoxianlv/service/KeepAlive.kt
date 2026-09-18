@@ -1,6 +1,7 @@
 package app.luoxianlv.service
 
 import android.content.Context
+import android.app.NotificationManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -23,9 +24,14 @@ object KeepAlive {
             accessibilityEnabled = MusicAccessibilityService.isEnabled(context),
             batteryExempt = pm?.isIgnoringBatteryOptimizations(context.packageName) ?: false,
             notificationsGranted =
-                Build.VERSION.SDK_INT < 33 ||
+                (Build.VERSION.SDK_INT < 33 ||
                     context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
-                    PackageManager.PERMISSION_GRANTED,
+                    PackageManager.PERMISSION_GRANTED) &&
+                    context.getSystemService(NotificationManager::class.java).let { manager ->
+                        manager.areNotificationsEnabled() &&
+                            manager.getNotificationChannel(PlaybackForegroundService.CHANNEL)?.importance !=
+                            NotificationManager.IMPORTANCE_NONE
+                    },
         )
     }
 
@@ -48,6 +54,14 @@ object KeepAlive {
     }
 
     fun openNotificationSettings(context: Context) {
+        val channel = context.getSystemService(NotificationManager::class.java)
+            .getNotificationChannel(PlaybackForegroundService.CHANNEL)
+        if (channel?.importance == NotificationManager.IMPORTANCE_NONE) {
+            launch(context, Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                .putExtra(Settings.EXTRA_CHANNEL_ID, PlaybackForegroundService.CHANNEL))
+            return
+        }
         launch(
             context,
             Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)

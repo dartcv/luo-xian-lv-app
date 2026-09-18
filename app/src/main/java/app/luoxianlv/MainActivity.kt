@@ -44,6 +44,7 @@ class MainActivity : AppCompatActivity() {
     private var showOnboarding by mutableStateOf(false)
     private var showBatteryPrompt by mutableStateOf(false)
     private var disclaimerAccepted by mutableStateOf(true)
+    private var updateCheckOnOpenDone = false
     private lateinit var disclaimerText: String
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
@@ -71,6 +72,7 @@ class MainActivity : AppCompatActivity() {
                         onAgree = {
                             DisclaimerStore(this).markAgreed(disclaimerSha)
                             disclaimerAccepted = true
+                            checkUpdatesAfterDisclaimer()
                         },
                         onDecline = ::finishAffinity,
                     )
@@ -144,8 +146,18 @@ class MainActivity : AppCompatActivity() {
         // 无障碍服务可能在本应用暂停期间被启用；回到前台时按持久化偏好重新对齐悬浮窗
         MusicAccessibilityService.instance?.showFloating(repository.floatingEnabled)
         hotUpdates.check { runOnUiThread { AppEvents.notifyLibraryChanged() } }
-        appUpdates.onResume(this)
+        if (disclaimerAccepted) {
+            if (!updateCheckOnOpenDone) checkUpdatesAfterDisclaimer()
+            else appUpdates.onResume(this)
+        }
         requestBatteryExemptionOnce()
+    }
+
+    /** 每次打开应用且已读完免责声明后立即检查一次，后续前台恢复走节流检查。 */
+    private fun checkUpdatesAfterDisclaimer() {
+        if (updateCheckOnOpenDone || !disclaimerAccepted) return
+        updateCheckOnOpenDone = true
+        appUpdates.check(manual = true)
     }
 
     /** 无障碍开启后，引导一次「忽略电池优化」：防 Doze/OEM 后台清理把服务和悬浮窗杀掉。

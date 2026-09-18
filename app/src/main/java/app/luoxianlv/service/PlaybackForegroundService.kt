@@ -40,7 +40,7 @@ class PlaybackForegroundService : Service() {
     }
     override fun onBind(intent: Intent?): IBinder? = null
     companion object {
-        private const val CHANNEL = "playback_controls"
+        const val CHANNEL = "playback_controls"
         private const val ID = 1201
         private const val STOP = "app.luoxianlv.STOP_FLOATING_PLAYER"
     }

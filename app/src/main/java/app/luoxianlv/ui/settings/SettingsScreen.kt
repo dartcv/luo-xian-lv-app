@@ -31,6 +31,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.luoxianlv.data.AccountSession
@@ -56,6 +60,12 @@ fun SettingsScreen(
     val state by vm.state.collectAsStateWithLifecycle()
     var showAppearance by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val notificationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        vm.refresh()
+        if (!granted) KeepAlive.openNotificationSettings(context)
+    }
 
     LaunchedEffect(Unit) { vm.refresh() }
     // 从系统授权页返回时刷新保活状态（电池白名单 / 通知权限都在系统页里改）
@@ -112,7 +122,7 @@ fun SettingsScreen(
                                 "未允许 · 权限丢失、悬浮窗消失多半因为它"
                             },
                     ) { KeepAlive.requestBatteryExemption(context) }
-                    if (Build.VERSION.SDK_INT >= 33) {
+                    run {
                         PreferenceDivider()
                         PreferenceItem(
                             title = "播放通知权限",
@@ -122,7 +132,15 @@ fun SettingsScreen(
                                 } else {
                                     "未授予 · 常驻通知不显示，建议允许"
                                 },
-                        ) { KeepAlive.openNotificationSettings(context) }
+                        ) {
+                            if (Build.VERSION.SDK_INT >= 33 &&
+                                context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                            ) {
+                                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                KeepAlive.openNotificationSettings(context)
+                            }
+                        }
                     }
                     PreferenceDivider()
                     PreferenceItem(

@@ -35,7 +35,6 @@ import androidx.compose.ui.unit.sp
 import app.luoxianlv.ui.theme.GradientBackdrop
 import app.luoxianlv.ui.theme.OnBackdropContent
 import app.luoxianlv.ui.theme.PlayerDanger
-import app.luoxianlv.ui.theme.containerBorder
 
 // 判定"已读到底部"的剩余像素余量：到底前的吸附距离内都算已读，
 // 避免最后一点内容被圆角/内边距遮住时按钮死活点不亮。
@@ -45,7 +44,7 @@ private val SECTION_HEADING = Regex("^[一二三四五六七八九十]+、")
 
 /** 首次启动的免责协议全屏门：同意前不渲染正常 App。
  *
- * 视觉与顶层页面同一套语言：蓝灰渐变底 + 深藏青标题 + 白色圆角卡片（细描边），
+ * 视觉与顶层页面同一套语言：蓝灰渐变底 + 深藏青标题 + 白色圆角卡片，
  * 见 ui/theme/Backdrop.kt 与 ActionPill。协议正文按行渲染：
  * 小节标题（一、二、…）加粗强调，正文用常规字重。
  *
@@ -62,8 +61,11 @@ fun DisclaimerScreen(
     }
     val readProgress by remember {
         derivedStateOf {
-            if (scrollState.maxValue <= 0) 1f
-            else scrollState.value.toFloat() / scrollState.maxValue
+            if (scrollState.maxValue <= 0) {
+                1f
+            } else {
+                scrollState.value.toFloat() / scrollState.maxValue
+            }
         }
     }
     // 资产文件首行是文档大标题（"落弦律 · 免责声明与使用条款"），
@@ -111,7 +113,6 @@ fun DisclaimerScreen(
                         .fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
                 color = MaterialTheme.colorScheme.surface,
-                border = containerBorder(),
                 shadowElevation = 0.dp,
             ) {
                 Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {

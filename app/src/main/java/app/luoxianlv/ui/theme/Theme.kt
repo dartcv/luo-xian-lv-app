@@ -7,7 +7,6 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import app.luoxianlv.data.AppearanceSettings
 
 private val LightColors =
     lightColorScheme(
@@ -26,23 +25,21 @@ private val LightColors =
         error = PlayerDanger,
     )
 
-/** 落弦律 Material 3 主题：Android 12+ 动态取色，低版本回退品牌色。
- * 外观设置把统一透明度应用到容器角色上；页面底色由 `Backdrop.kt` 的渐变底承担。
+/**
+ * 落弦律 Material 3 主题：Android 12+ 动态取色，低版本回退品牌色。
  *
- * 透明度只作用于容器，文字与强调色保持不透明：
- * 否则拉到最大透明度时按钮文字、分组标题会一起发灰，可读性明显下降。 */
+ * 页面底色由 `Backdrop.kt` 的渐变底承担；容器半透明固定为
+ * [ON_BACKDROP_SURFACE_ALPHA]，文字与强调色保持不透明 ——
+ * 半透明容器要是连文字一起透，可读性会明显下降。
+ */
 @Composable
-fun LuoXianLvTheme(
-    appearance: AppearanceSettings = AppearanceSettings(),
-    content: @Composable () -> Unit,
-) {
+fun LuoXianLvTheme(content: @Composable () -> Unit) {
     val baseColors =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             dynamicLightColorScheme(LocalContext.current)
         } else {
             LightColors
         }
-    val alpha = appearance.controlAlpha
     val colors =
         baseColors.copy(
             // 禁用色调抬升：Surface 的 tonalElevation 会把 surfaceTint 叠到表面上，
@@ -50,20 +47,10 @@ fun LuoXianLvTheme(
             // 结果同样是半透明容器，1dp 的卡片 / 3dp 的导航栏 / 0dp 的对话框颜色各不相同。
             surfaceTint = Color.Transparent,
             // 控件容器：卡片、导航栏、次级背景。
-            // surface 额外压到最多 ON_BACKDROP_SURFACE_ALPHA：按钮、选项卡、
+            // surface 压到 ON_BACKDROP_SURFACE_ALPHA：按钮、选项卡、
             // 设置卡片这些全都盖在渐变底上，完全不透明会糊成一块块死白的板子。
             // 只动 surface —— 对话框/菜单用的 surfaceContainer* 刻意保持不透明（见下）。
-            surface =
-                baseColors.surface.copy(
-                    alpha = minOf(alpha, ON_BACKDROP_SURFACE_ALPHA),
-                ),
-            surfaceVariant = baseColors.surfaceVariant.copy(alpha = alpha),
-            surfaceContainerLowest = baseColors.surfaceContainerLowest.copy(alpha = alpha),
-            surfaceContainerLow = baseColors.surfaceContainerLow.copy(alpha = alpha),
-            surfaceContainerHighest = baseColors.surfaceContainerHighest.copy(alpha = alpha),
-            primaryContainer = baseColors.primaryContainer.copy(alpha = alpha),
-            secondaryContainer = baseColors.secondaryContainer.copy(alpha = alpha),
-            tertiaryContainer = baseColors.tertiaryContainer.copy(alpha = alpha),
+            surface = baseColors.surface.copy(alpha = ON_BACKDROP_SURFACE_ALPHA),
             // 刻意不透明化这两个角色：它们是 Material 浮层的容器色。
             // 浮层在独立窗口里叠在黑色 scrim 上，跟着变透明只会更难辨认。
             //

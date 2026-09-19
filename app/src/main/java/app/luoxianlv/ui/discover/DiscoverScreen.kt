@@ -30,7 +30,6 @@ import app.luoxianlv.ui.components.NavBarClearance
 import app.luoxianlv.ui.components.PageTitle
 import app.luoxianlv.ui.components.RemoteScoreCard
 import app.luoxianlv.ui.components.SnackbarNotice
-import app.luoxianlv.ui.theme.containerBorder
 import app.luoxianlv.ui.theme.containerElevation
 
 /** 发现页：搜索入口 + 全部公开谱子。 */
@@ -59,7 +58,6 @@ fun DiscoverScreen(
             onClick = onSearch,
             modifier = Modifier.fillMaxWidth(),
             elevation = containerElevation(),
-            border = containerBorder(),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(14.dp),

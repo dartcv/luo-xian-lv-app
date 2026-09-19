@@ -22,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import app.luoxianlv.ui.theme.containerBorder
 import app.luoxianlv.ui.theme.containerElevation
 import app.luoxianlv.update.PlatformScore
 
@@ -38,7 +37,6 @@ fun RemoteScoreCard(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = containerElevation(),
-        border = containerBorder(),
     ) {
         Row(
             modifier =

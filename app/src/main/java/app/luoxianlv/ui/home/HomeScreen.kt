@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
@@ -172,12 +173,7 @@ fun HomeScreen(
                         greeting = greetingFor(time.hour),
                         // 一言：与参考实现那句诗相同的位置（问候语下方的主文案）
                         headline = HOME_QUOTE,
-                        statusText =
-                            statusTextFor(
-                                error = state.service.error,
-                                connected = state.service.connected,
-                                floatingEnabled = state.floatingEnabled,
-                            ),
+                        statusText = state.statusText,
                         statusColor =
                             if (state.service.connected && state.service.error == null) {
                                 MaterialTheme.colorScheme.secondary
@@ -185,18 +181,20 @@ fun HomeScreen(
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             },
                         minimumHeight = overviewMinHeight,
-                        // 状态胶囊：未连接时去系统无障碍设置；已连接时切换悬浮窗开关。
-                        // 关闭入口只能放在这里：悬浮窗自身没有用户可达的完全关闭按钮，
-                        // 「启动」按钮又是单向的，不在这里留一手就再也关不掉了。
+                        // 窗口真的在跑才算运行中（[LibraryUiState.floatingRunning]），
+                        // 界面不再靠持久化偏好猜状态。
+                        running = state.floatingRunning,
+                        // 状态胶囊：无障碍没开时直接去系统设置最快；
+                        // 其余情况一律切换悬浮窗，所以「运行中 · 点击关闭」点下去真能关。
                         onStatusClick = {
-                            if (!state.service.connected) {
+                            if (!state.service.accessibilityEnabled) {
                                 context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                             } else {
-                                vm.setFloatingEnabled(!state.floatingEnabled)
+                                vm.toggleFloating()
                             }
                         },
-                        // 「启动」：单向开启，在最前面判权限，所以没权限时点一下就会弹引导。
-                        onStartFloating = vm::startFloating,
+                        // 「启动 / 关闭」：同一个按钮按真实状态开或关。
+                        onToggleFloating = vm::toggleFloating,
                     )
                 }
             }
@@ -205,6 +203,8 @@ fun HomeScreen(
 
     if (state.showAccessibilityPrompt) {
         AccessibilityPromptDialog(
+            // 已开启却弹引导，说明服务被系统回收没跑起来：处理方式不一样，要说清楚
+            alreadyEnabled = state.service.accessibilityEnabled,
             onOpenSettings = {
                 context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                 vm.dismissAccessibilityPrompt()
@@ -544,8 +544,9 @@ private fun HomeOverview(
     statusText: String,
     statusColor: Color,
     minimumHeight: Dp,
+    running: Boolean,
     onStatusClick: () -> Unit,
-    onStartFloating: () -> Unit,
+    onToggleFloating: () -> Unit,
 ) {
     // heightIn(min) 保证信息区至少占满「整列高度 - 插画高度」，
     // 内部用 weight 撑开把页脚推到底部，于是右下角不会留白。
@@ -601,12 +602,12 @@ private fun HomeOverview(
 
         Spacer(modifier = Modifier.height(22.dp))
 
-        // 宽胶囊：启动悬浮窗。文字按设计固定为「启动」，
-        // 开关状态由上方状态胶囊体现（“悬浮窗运行中 / 已关闭”）。
+        // 宽胶囊：启动 / 关闭，按真实运行状态切换。
+        // 动作对象由上方状态胶囊（“悬浮窗运行中 · 点击关闭”）交代，按钮只留动词，文案更短。
         ActionPill(
-            label = "启动",
-            onClick = onStartFloating,
-            icon = Icons.Filled.PlayArrow,
+            label = if (running) "关闭" else "启动",
+            onClick = onToggleFloating,
+            icon = if (running) Icons.Filled.Stop else Icons.Filled.PlayArrow,
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -653,19 +654,6 @@ private fun VersionFooter(modifier: Modifier = Modifier) {
             ),
     )
 }
-
-/** 状态胶囊文案：无障碍连接 + 悬浮窗开关状态。已连接时点击是切换开关，所以文案带上动作。 */
-private fun statusTextFor(
-    error: String?,
-    connected: Boolean,
-    floatingEnabled: Boolean,
-): String =
-    when {
-        error != null -> error
-        !connected -> "无障碍未开启 · 点击去开启"
-        floatingEnabled -> "悬浮窗运行中 · 点击关闭"
-        else -> "悬浮窗已关闭 · 点击开启"
-    }
 
 private fun greetingFor(hour: Int): String =
     when (hour) {

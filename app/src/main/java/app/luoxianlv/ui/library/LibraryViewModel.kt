@@ -50,6 +50,10 @@ enum class SongFilter(
  */
 data class ServiceStatus(
     val connected: Boolean = false,
+    /** 无障碍服务在系统设置里是否开着。服务被 ROM 回收时它会短暂为 true（见 [connected]）。 */
+    val accessibilityEnabled: Boolean = false,
+    /** 悬浮窗此刻是否真的显示着（不是持久化偏好）。 */
+    val floatingVisible: Boolean = false,
     val error: String? = null,
     val activeSongId: String = "",
 )
@@ -78,6 +82,32 @@ data class LibraryUiState(
 
     /** 是否存在任何谱面：用于区分「一首都没有」和「这一类没有」两种空状态。 */
     val hasAnySong: Boolean get() = songs.isNotEmpty()
+
+    /**
+     * 悬浮窗是否真的在运行：服务在线 **且** 窗口可见。
+     *
+     * 不能拿 [floatingEnabled] 当运行状态：那只是持久化的用户意图。
+     * 服务被 ROM 回收后偏好仍是 true，界面却会报「运行中」，
+     * 用户于是既看不到窗口消失、也没法用同一个按钮把它关掉。
+     */
+    val floatingRunning: Boolean get() = service.connected && service.floatingVisible
+
+    /**
+     * 首页状态胶囊文案。
+     *
+     * 四种情况都要能被用户分辨，且都能给出下一步动作：
+     * 无障碍没开就去设置、服务没绑上就再试一次、运行中/已关闭都可以点胶囊切换。
+     * 只把 [ServiceStatus.error] 留在「窗口没运行」时显示：窗口在跑时它的状态行
+     * 本来就会把错误写出来，胶囊这时候更该回答「关掉它要点哪里」。
+     */
+    val statusText: String
+        get() =
+            when {
+                !service.accessibilityEnabled -> "无障碍未开启 · 点击去开启"
+                !service.connected -> "无障碍服务未就绪 · 点击重试"
+                floatingRunning -> "悬浮窗运行中 · 点击关闭"
+                else -> service.error ?: "悬浮窗已关闭 · 点击开启"
+            }
 }
 
 /** 服务状态轮询间隔：只在页面订阅期间运行。 */
@@ -127,15 +157,29 @@ class LibraryViewModel(
         viewModelScope.launch { AppEvents.libraryRefresh.collect { refresh() } }
     }
 
+    /**
+     * 采样一次服务状态。
+     *
+     * 每个可能抛的点各自兜住（而不是整段包一个 runCatching）：这个方法跑在 500ms 轮询里，
+     * 抛一次异常就会让 combine 上游结束，界面永远停在最后一次状态上——
+     * 表现就是“点什么都没反应”，所以宁可漏掉一个字段也不能让整条状态流断掉。
+     */
     private fun readServiceStatus(): ServiceStatus {
-        // song 在 onServiceConnected 里先于 instance 赋值，因此 instance 非空时 song 一定已初始化
-        val service = MusicAccessibilityService.instance ?: return ServiceStatus()
+        val service = MusicAccessibilityService.instance
         return ServiceStatus(
-            connected = true,
-            error = service.error,
-            activeSongId = service.song.id,
+            connected = service != null,
+            // 服务已经在跑就必然已开启，省掉一次系统查询
+            accessibilityEnabled = service != null || accessibilityIsEnabled(),
+            floatingVisible = service?.floatingVisible == true,
+            error = service?.error,
+            // song 在 onServiceConnected 里先于 instance 赋值，因此 instance 非空时 song 一定已初始化
+            activeSongId = runCatching { service?.song?.id.orEmpty() }.getOrDefault(""),
         )
     }
+
+    /** 查系统无障碍开关（binder 调用，失败按未开启处理，不让轮询挂掉）。 */
+    private fun accessibilityIsEnabled(): Boolean =
+        runCatching { MusicAccessibilityService.isEnabled(getApplication()) }.getOrDefault(false)
 
     fun refresh() =
         _local.update {
@@ -156,38 +200,35 @@ class LibraryViewModel(
     }
 
     /**
-     * 「启动」按钮：开启悬浮窗。
+     * 「启动 / 关闭悬浮窗」按钮与状态胶囊的统一入口：按悬浮窗**真实状态**开或关。
      *
-     * 两个关键点：**先判权限**、而且**只做「开启」**。
+     * 直接问服务要窗口状态（而不是读界面里可能滞后的快照）：窗口开着就关、关着就开，
+     * 连点两下不会因为状态没刷新而变成「开两次」。
      *
-     * 之前的实现是 `setFloatingEnabled(!floatingEnabled)`，而 floatingEnabled 的持久化
-     * 默认值就是 true，于是第一次点击实际执行的是「关闭」：既不弹引导也没有可见变化，
-     * 必须点第二次才弹对话框。按钮写的是「启动」，就不应该取反。
-     *
-     * 无权限时仍然把偏好置为开启：用户授权返回后 MainActivity.onResume 会按这个偏好
-     * 重新对齐悬浮窗，不需要再点一次。
+     * 老实现是单向的 startFloating()：窗口已经跑着时再点只会重复 show()，
+     * 同一个按钮没有任何办法把它关掉。
      */
-    fun startFloating() {
-        repository.floatingEnabled = true
-        val granted = MusicAccessibilityService.isEnabled(getApplication())
-        if (granted) MusicAccessibilityService.instance?.showFloating(true)
-        _local.update {
-            it.copy(
-                floatingEnabled = true,
-                showAccessibilityPrompt = !granted,
-            )
-        }
+    fun toggleFloating() {
+        setFloatingEnabled(MusicAccessibilityService.instance?.floatingVisible != true)
     }
 
-    /** 悬浮窗开关。现在只由首页的状态胶囊调用（「启动」按钮走 [startFloating]）。 */
+    /**
+     * 打开 / 关闭悬浮窗，并记住用户意图。
+     *
+     * 打开时服务不在线（无障碍没开，或系统还没把服务绑起来）也照样把偏好置为开启：
+     * 用户去设置里打开后，onServiceConnected 会按这个偏好自动显示；回到前台时
+     * MainActivity.onResume 也会再对齐一次。
+     * 但**必须弹引导**：否则这种情况下点「启动」会完全没有反应，
+     * 用户只能看着「无障碍未开启」的文字反复点同一个按钮。
+     */
     fun setFloatingEnabled(enabled: Boolean) {
         repository.floatingEnabled = enabled
-        MusicAccessibilityService.instance?.showFloating(enabled)
+        val service = MusicAccessibilityService.instance
+        service?.showFloating(enabled)
         _local.update {
             it.copy(
                 floatingEnabled = enabled,
-                // 打开时才检查权限：未开启无障碍则弹引导
-                showAccessibilityPrompt = enabled && !MusicAccessibilityService.isEnabled(getApplication()),
+                showAccessibilityPrompt = enabled && service == null,
             )
         }
     }

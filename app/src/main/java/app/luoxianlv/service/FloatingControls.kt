@@ -70,6 +70,15 @@ class FloatingControls(
             marker = null
         }
 
+    /**
+     * 悬浮窗此刻是否（应当）显示在屏幕上。
+     *
+     * [show] / [hide] 同步改写 [displayRequested]，拖拽、选歌窗临时顶掉面板都不影响它，
+     * 所以界面可以直接拿它判断「运行中」——不必再看持久化偏好：
+     * 服务被系统回收后偏好仍是 true，界面就会谎报运行中，点「关闭」还会再打开一次。
+     */
+    val isVisible: Boolean get() = displayRequested
+
     fun show() {
         displayRequested = true
         showRetries = 0
@@ -79,9 +88,12 @@ class FloatingControls(
 
     fun hide() {
         displayRequested = false
-        dismissPlaylist()
+        // removeView 可能抛（视图已被系统移除）。这里必须吞掉异常并把字段清干净：
+        // 一旦抛出去，root 会停在非空值上，之后 show() 会因为 root != null 永远直接返回，
+        // 悬浮窗就再也打不开了。
+        runCatching { dismissPlaylist() }
         handler.removeCallbacks(tick)
-        root?.let { wm.removeView(it) }
+        root?.let { view -> runCatching { wm.removeView(view) } }
         root = null
         title = null
         status = null
@@ -293,6 +305,10 @@ class FloatingControls(
     private fun retryShow() {
         if (++showRetries <= 3) {
             handler.postDelayed({ if (displayRequested && root == null) render(expanded) }, 500)
+        } else {
+            // 重试也没挂上：认输并把显示意图清掉，
+            // 否则 [isVisible] 会一直报「运行中」，界面上却什么都没有。
+            displayRequested = false
         }
     }
 

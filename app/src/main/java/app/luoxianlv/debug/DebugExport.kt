@@ -70,6 +70,8 @@ object DebugExport {
                 zip.closeEntry()
             }
         }
+        PlaybackDebugLog.trim()
+        check(zipFile.isFile) { "诊断文件超过留存上限" }
         return zipFile
     }
 

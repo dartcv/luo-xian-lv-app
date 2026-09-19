@@ -32,9 +32,12 @@ object PlaybackDebugLog {
     private val stamp = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US)
     private val fileStamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
     @Volatile private var dir: File? = null
+    @Volatile private var exports: File? = null
 
     fun init(context: Context) {
         dir = File(context.filesDir, "playback-debug").apply { mkdirs() }
+        exports = File(context.cacheDir, "updates")
+        enqueue { synchronized(lock) { trim() } }
         log("logger init pkg=${context.packageName}")
     }
 
@@ -51,6 +54,7 @@ object PlaybackDebugLog {
                     File(d, "play-debug.log.1").delete()
                     file.renameTo(File(d, "play-debug.log.1"))
                 }
+                trim()
             } catch (_: Exception) {
             }
         } }
@@ -70,6 +74,7 @@ object PlaybackDebugLog {
                     val file = File(shots, "shot_${fileStamp.format(at)}_${copy.width}x${copy.height}.jpg")
                     FileOutputStream(file).use { copy.compress(Bitmap.CompressFormat.JPEG, 85, it) }
                     shots.listFiles()?.sortedBy { it.name }?.dropLast(15)?.forEach { it.delete() }
+                    trim()
                 }
             } finally {
                 copy.recycle()
@@ -79,6 +84,12 @@ object PlaybackDebugLog {
             copy.recycle()
             pendingShot.set(false)
         }
+    }
+
+    internal fun trim() {
+        val logs = dir ?: return
+        val zipDirectory = exports ?: return
+        DiagnosticRetention.trim(logs, zipDirectory)
     }
 
     fun <T> withSnapshot(action: () -> T): T = synchronized(lock) { action() }

@@ -18,8 +18,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.ViewModelProvider
 import app.luoxianlv.data.AppearanceStore
 import app.luoxianlv.data.DisclaimerStore
+import app.luoxianlv.data.SessionStore
 import app.luoxianlv.data.SongRepository
 import app.luoxianlv.service.KeepAlive
 import app.luoxianlv.service.MusicAccessibilityService
@@ -28,10 +30,8 @@ import app.luoxianlv.ui.components.OnboardingDialog
 import app.luoxianlv.ui.components.Snowfall
 import app.luoxianlv.ui.navigation.AppNavHost
 import app.luoxianlv.ui.theme.LuoXianLvTheme
-import app.luoxianlv.update.UpdateManager
-import app.luoxianlv.data.SessionStore
 import app.luoxianlv.update.AppUpdateViewModel
-import androidx.lifecycle.ViewModelProvider
+import app.luoxianlv.update.UpdateManager
 
 /** Compose 单 Activity 入口：只负责挂 UI 树与生命周期级的服务/热更新对齐。 */
 class MainActivity : AppCompatActivity() {
@@ -43,6 +43,7 @@ class MainActivity : AppCompatActivity() {
     private var disclaimerAccepted by mutableStateOf(true)
     private var updateCheckOnOpenDone = false
     private lateinit var disclaimerText: String
+
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         enableEdgeToEdge()
@@ -61,7 +62,9 @@ class MainActivity : AppCompatActivity() {
         showOnboarding = isFirstLaunch() && !MusicAccessibilityService.isEnabled(this)
         setContent {
             val appearance by AppearanceStore.settings.collectAsState()
-            LuoXianLvTheme(appearance = appearance) {
+            // 主题不再吃外观设置：容器半透明固定（见 Theme.kt），
+            // appearance 这里只驱动飘雪动效。
+            LuoXianLvTheme {
                 if (!disclaimerAccepted) {
                     DisclaimerScreen(
                         text = disclaimerText,
@@ -100,7 +103,6 @@ class MainActivity : AppCompatActivity() {
                                 },
                             )
                         }
-
                     }
                 }
             }
@@ -135,15 +137,19 @@ class MainActivity : AppCompatActivity() {
         if (android.os.Build.VERSION.SDK_INT >= 33 && repository.floatingEnabled &&
             MusicAccessibilityService.isEnabled(this) &&
             checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED &&
-            !appPrefs.getBoolean("notification_permission_asked", false)) {
+            !appPrefs.getBoolean("notification_permission_asked", false)
+        ) {
             appPrefs.edit().putBoolean("notification_permission_asked", true).apply()
             requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1201)
         }
         // 无障碍服务可能在本应用暂停期间被启用；回到前台时按持久化偏好重新对齐悬浮窗
         MusicAccessibilityService.instance?.showFloating(repository.floatingEnabled)
         if (disclaimerAccepted) {
-            if (!updateCheckOnOpenDone) checkUpdatesAfterDisclaimer()
-            else appUpdates.onResume(this)
+            if (!updateCheckOnOpenDone) {
+                checkUpdatesAfterDisclaimer()
+            } else {
+                appUpdates.onResume(this)
+            }
         }
         requestBatteryExemptionOnce()
     }

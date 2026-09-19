@@ -95,12 +95,7 @@ class SettingsViewModel(
 
     fun ackRegistered() = _state.update { it.copy(registered = false) }
 
-    fun saveAppearance(settings: AppearanceSettings) {
-        AppearanceStore.save(app, settings)
-        _state.update { it.copy(appearance = settings) }
-    }
-
-    /** 开关飘雪：直接改偏好并落盘，不需要走对话框。 */
+    /** 开关飘雪：直接改偏好并落盘。 */
     fun setSnowEnabled(enabled: Boolean) {
         val next = _state.value.appearance.copy(snowEnabled = enabled)
         AppearanceStore.save(app, next)

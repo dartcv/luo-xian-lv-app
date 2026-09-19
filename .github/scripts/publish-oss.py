@@ -9,16 +9,17 @@ import urllib.request
 import oss2
 
 
-def upload_and_verify(bucket, apk, object_key, sha):
+def upload_and_verify(bucket, download_bucket, apk, object_key, sha):
     bucket.put_object_from_file(
         object_key, str(apk),
-        headers={"Content-Type": "application/zip", "Cache-Control": "private, max-age=0"},
+        headers={"Content-Type": "application/vnd.android.package-archive", "Cache-Control": "private, max-age=0"},
     )
-    url = bucket.sign_url("GET", object_key, 120)
+    # APK downloads must use the bound domain, not the default OSS endpoint.
+    url = download_bucket.sign_url("GET", object_key, 120)
     digest = hashlib.sha256()
     size = 0
     with urllib.request.urlopen(url, timeout=60) as response:
-        if response.headers.get_content_type() != "application/zip":
+        if response.headers.get_content_type() != "application/vnd.android.package-archive":
             raise ValueError("Unexpected OSS content type")
         while chunk := response.read(1024 * 1024):
             digest.update(chunk)
@@ -40,11 +41,15 @@ def main():
         oss2.Auth(os.environ["OSS_ACCESS_KEY_ID"], os.environ["OSS_ACCESS_KEY_SECRET"]),
         endpoint, os.environ["OSS_BUCKET"], connect_timeout=60,
     )
-    # OSS 下载使用 zip 类型，按内容摘要隔离每次构建。
-    object_key = f"luoxianlv/release/{package['versionName']}/{sha}/app-release.zip"
+    download_bucket = oss2.Bucket(
+        bucket.auth, "https://oss-luoxianlv.admilk.cn", os.environ["OSS_BUCKET"],
+        is_cname=True, connect_timeout=60,
+    )
+    # APP 与官网统一使用 APK，按内容摘要隔离每次构建。
+    object_key = f"luoxianlv/release/{package['versionName']}/{sha}/app-release.apk"
     for attempt in range(3):
         try:
-            upload_and_verify(bucket, apk, object_key, sha)
+            upload_and_verify(bucket, download_bucket, apk, object_key, sha)
             break
         except Exception:
             if attempt == 2:

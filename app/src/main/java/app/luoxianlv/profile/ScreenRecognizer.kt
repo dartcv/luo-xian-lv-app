@@ -92,13 +92,12 @@ object ScreenRecognizer {
         width: Int,
         height: Int,
     ): Result? {
-        require(luma.size == width * height)
+        require(width > 0 && height > 0 && luma.size.toLong() == width.toLong() * height)
         // Top-hat: pixels much brighter than their local surroundings. The key
         // digits pass this even when the scene (sky) is brighter than they are.
         val local = localMean(luma, width, height, 18)
         val strict = BooleanArray(luma.size) { luma[it] - local[it] > 45f && luma[it] > 120f }
-        val loose = BooleanArray(luma.size) { luma[it] - local[it] > 22f && luma[it] > 85f }
-        val notes = findNoteRow(glyphs(strict, width, height)) ?: return null
+        val notes = findNoteRow(glyphs(strict, width, height), width) ?: return null
         val noteY = notes.map { it.cy }.average().toFloat()
         val noteH = notes.map { it.h }.average().toFloat()
         val noteXs = notes.map { it.cx }
@@ -110,6 +109,17 @@ object ScreenRecognizer {
 
         val predictedY = noteY + MODE_Y_OFFSET * spacing
         val predictedX = FloatArray(4) { noteXs[0] + (MODE_SEMI_OFFSET + MODE_GAPS[it]) * spacing }
+        // Only search the mode row after the note row is known. Avoid flooding
+        // connected components across unrelated HUD text and scenery.
+        val loose = BooleanArray(luma.size)
+        val modeTop = max(0, (predictedY - spacing).toInt())
+        val modeBottom = min(height - 1, (predictedY + spacing).toInt())
+        val modeLeft = max(0, (predictedX.first() - spacing).toInt())
+        val modeRight = min(width - 1, (predictedX.last() + spacing).toInt())
+        for (y in modeTop..modeBottom) for (x in modeLeft..modeRight) {
+            val i = y * width + x
+            loose[i] = luma[i] - local[i] > 22f && luma[i] > 85f
+        }
         val labels = modeLabels(glyphs(loose, width, height), noteY, noteH, predictedY, spacing)
         val matched = predictedX.map { px -> labels.filter { abs(it.cx - px) <= 0.3f * spacing }.minByOrNull { abs(it.cx - px) } }
         val hits = matched.count { it != null }
@@ -188,14 +198,13 @@ object ScreenRecognizer {
         w: Int,
         h: Int,
     ): List<Glyph> {
-        val visited = BooleanArray(mask.size)
         val stack = IntArray(mask.size)
         val raw = mutableListOf<Glyph>()
         for (start in mask.indices) {
-            if (!mask[start] || visited[start]) continue
+            if (!mask[start]) continue
             var top = 0
             stack[top++] = start
-            visited[start] = true
+            mask[start] = false
             var x0 = Int.MAX_VALUE
             var x1 = Int.MIN_VALUE
             var y0 = Int.MAX_VALUE
@@ -217,8 +226,8 @@ object ScreenRecognizer {
                         val ny = y + dy
                         if (nx !in 0 until w || ny !in 0 until h) continue
                         val q = ny * w + nx
-                        if (mask[q] && !visited[q]) {
-                            visited[q] = true
+                        if (mask[q]) {
+                            mask[q] = false
                             stack[top++] = q
                         }
                     }
@@ -244,7 +253,7 @@ object ScreenRecognizer {
     }
 
     /** Eight same-size glyphs on a level, evenly spaced row = the note keys. */
-    private fun findNoteRow(glyphs: List<Glyph>): List<Glyph>? {
+    private fun findNoteRow(glyphs: List<Glyph>, width: Int): List<Glyph>? {
         var best: List<Glyph>? = null
         var bestScore = Float.MAX_VALUE
         for (seed in glyphs) {
@@ -260,6 +269,9 @@ object ScreenRecognizer {
                 if (maxY - minY > 0.45f * meanH) continue
                 val xs = window.map { it.cx }
                 val meanSp = (xs.last() - xs.first()) / 7f
+                // A row of HUD text can also be evenly spaced. Piano keys
+                // must span a substantial width with gaps larger than digits.
+                if (meanSp < meanH * 1.8f || xs.last() - xs.first() < width * 0.30f) continue
                 val cv = sqrt(xs.zipWithNext { a, b -> (b - a - meanSp) * (b - a - meanSp) }.average().toFloat()) / meanSp
                 if (cv >= 0.12f) continue
                 val score = cv + (maxY - minY) / meanH * 0.1f
@@ -337,6 +349,9 @@ object ScreenRecognizer {
         val rIn = r * 0.55f
         val rMid = r * 1.25f
         val rOut = r * 1.7f
+        val inSquared = rIn * rIn
+        val midSquared = rMid * rMid
+        val outSquared = rOut * rOut
         val inner = mutableListOf<Float>()
         val outer = mutableListOf<Float>()
         val x0 = max(0, (cx - rOut).toInt())
@@ -347,10 +362,10 @@ object ScreenRecognizer {
             for (x in x0..x1) {
                 val dx = x - cx
                 val dy = y - cy
-                val d = sqrt(dx * dx + dy * dy)
-                if (d <= rIn) {
+                val d = dx * dx + dy * dy
+                if (d <= inSquared) {
                     inner.add(luma[y * w + x])
-                } else if (d in rMid..rOut) {
+                } else if (d in midSquared..outSquared) {
                     outer.add(luma[y * w + x])
                 }
             }

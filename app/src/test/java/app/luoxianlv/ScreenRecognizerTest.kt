@@ -9,6 +9,43 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 class ScreenRecognizerTest {
+    @Test fun blankAndCompactHudTextAreRejected() {
+        val width = 1024
+        val height = 600
+        val pixels = FloatArray(width * height)
+        org.junit.Assert.assertNull(ScreenRecognizer.analyze(pixels, width, height))
+        // Eight equally spaced, digit-sized strokes in a short HUD label.
+        for (i in 0..7) {
+            for (y in 400..420) for (x in 100 + i * 15..105 + i * 15) {
+                if (x == 100 + i * 15 || y == 400 || y == 410) pixels[y * width + x] = 240f
+            }
+        }
+        org.junit.Assert.assertNull(ScreenRecognizer.analyze(pixels, width, height))
+    }
+
+    /** Optional private repro captures stay outside Git; CI uses the public fixtures. */
+    @Test fun privateReproductionCaptures() {
+        val path = System.getenv("LX_DIAGNOSTIC_FIXTURES")
+        org.junit.Assume.assumeTrue(path != null)
+        val files = java.io.File(path!!).listFiles { f -> f.extension == "gray" }!!
+        assertTrue(files.isNotEmpty())
+        for (file in files) {
+            val bytes = file.readBytes()
+            val header = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+            val w = header.int
+            val h = header.int
+            val pixels = FloatArray(w * h) { bytes[8 + it].toInt().and(255).toFloat() }
+            val start = System.nanoTime()
+            val result = ScreenRecognizer.analyze(pixels, w, h)
+            assertNotNull(file.name, result)
+            assertTrue(result!!.layout.noteY in .58f.. .62f)
+            assertTrue(result.layout.noteX.first() in .16f.. .20f)
+            assertTrue(result.layout.noteX.last() in .78f.. .83f)
+            assertEquals(PlayMode.NATURAL, result.mode)
+            println("private capture recognized in ${(System.nanoTime() - start) / 1_000_000} ms")
+        }
+    }
+
     /** Reads a `.gray` fixture: 8-byte little-endian width/height header, then
      * one byte per pixel at 1024-wide downscale (pre-generated from the PNG
      * samples, since unit tests have no android Bitmap/ImageIO available). */

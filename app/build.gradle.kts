@@ -51,6 +51,11 @@ android {
                 signingConfig = signingConfigs.getByName("debug")
             }
         }
+        // 复现调试包：与正式包共存（独立包名），供导出诊断 ZIP 排查手势坐标问题。
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
     }
 
     compileOptions {

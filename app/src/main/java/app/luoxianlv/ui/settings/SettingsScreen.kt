@@ -102,38 +102,38 @@ fun SettingsScreen(
                 PreferenceSection("外观") {
                     PreferenceItem(
                         title = "控件透明度",
-                        summary = "${"%.0f".format(state.appearance.transparency * 100)}% · 影响卡片与导航栏等容器",
+                        summary = "${"%.0f".format(state.appearance.transparency * 100)}%",
                     ) { showAppearance = true }
                     PreferenceDivider()
                     PreferenceSwitchItem(
                         title = "飘雪",
                         checked = state.appearance.snowEnabled,
                         onCheckedChange = vm::setSnowEnabled,
-                        summary = "从屏幕上方飘落微小雪花",
+                        summary = "显示雪花动效",
                     )
                 }
                 PreferenceDivider()
-                PreferenceSection("后台运行保护") {
-                    PreferenceItem("播放诊断", "查看最近一次识别和手势状态", onClick = onDiagnostics)
+                PreferenceSection("后台运行") {
+                    PreferenceItem("播放诊断", "查看播放状态与诊断记录", onClick = onDiagnostics)
                     PreferenceDivider()
                     PreferenceItem(
-                        title = "电池优化白名单",
+                        title = "忽略电池优化",
                         summary =
                             if (state.keepAlive.batteryExempt) {
-                                "已允许 · 切后台或息屏后不易被杀"
+                                "已允许"
                             } else {
-                                "未允许 · 权限丢失、悬浮窗消失多半因为它"
+                                "未允许，后台播放可能中断"
                             },
                     ) { KeepAlive.requestBatteryExemption(context) }
                     run {
                         PreferenceDivider()
                         PreferenceItem(
-                            title = "播放通知权限",
+                            title = "播放通知",
                             summary =
                                 if (state.keepAlive.notificationsGranted) {
-                                    "已授予 · 悬浮窗保活通知正常显示"
+                                "已开启"
                                 } else {
-                                    "未授予 · 常驻通知不显示，建议允许"
+                                "未开启，点击设置"
                                 },
                         ) {
                             if (Build.VERSION.SDK_INT >= 33 &&
@@ -147,8 +147,8 @@ fun SettingsScreen(
                     }
                     PreferenceDivider()
                     PreferenceItem(
-                        title = "自启动与后台管理",
-                        summary = "红魔/小米/华为等 ROM 需额外允许自启动，否则会反复要权限",
+                        title = "自启动与后台权限",
+                        summary = "部分手机需在系统设置中允许后台运行",
                     ) { KeepAlive.openAutoStartSettings(context) }
                 }
                 PreferenceDivider()

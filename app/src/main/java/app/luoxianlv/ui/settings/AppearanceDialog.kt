@@ -48,8 +48,7 @@ fun AppearanceDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Text(
-                    "作用于卡片、导航栏、对话框等控件容器，文字与强调色保持不透明。" +
-                        "100% 时容器最透，下面的渐变底会透上来。",
+                    "调整卡片、导航栏和对话框的透明度，数值越大越透明。",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

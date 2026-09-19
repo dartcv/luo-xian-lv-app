@@ -55,28 +55,28 @@ fun PlaybackDiagnosticsScreen(onBack: () -> Unit, snackbarHostState: SnackbarHos
             SettingsCard {
                 PreferenceSection("当前状态") {
                     PreferenceItem("无障碍服务", if (d?.serviceEnabled == true) "已开启" else "未开启") {}
-                    PreferenceItem("播放状态", when { d == null -> "服务未运行"; d.playing -> "播放中"; d.preparing -> "识别屏幕中"; else -> "已停止" }) {}
+                    PreferenceItem("播放状态", when { d == null -> "服务未运行"; d.playing -> "播放中"; d.preparing -> "正在识别琴键"; else -> "已停止" }) {}
                     PreferenceItem("当前曲目", d?.songTitle ?: "服务未运行") {}
                 }
             }
         }
         item {
             SettingsCard {
-                PreferenceSection("最近一次环境信息") {
+                PreferenceSection("屏幕与手势") {
                     val display = d?.display?.let { "${it.first} × ${it.second} · 旋转 ${it.third * 90}°" } ?: "暂无"
                     PreferenceItem("当前屏幕", display) {}
                     PreferenceItem("播放时屏幕", d?.playbackDisplay?.let { "${it.first} × ${it.second} · 旋转 ${it.third * 90}°" } ?: "暂无") {}
                     PreferenceItem("最近点击坐标", d?.lastCoordinates ?: "暂无") {}
                     PreferenceItem("播放错误", d?.error ?: "无") {}
-                    PreferenceItem("手势结果", d?.gestureFailure ?: "无") {}
+                    PreferenceItem("手势错误", d?.gestureFailure ?: "无") {}
                 }
             }
         }
         item {
             SettingsCard {
-                PreferenceSection("按键布局（归一化比例，0-1）") {
-                    PreferenceItem("音符 X", layout.noteX.joinToString(" ") { "%.3f".format(it) }) {}
-                    PreferenceItem("音符 Y", "%.3f".format(layout.noteY)) {}
+                PreferenceSection("按键位置（比例 0–1）") {
+                    PreferenceItem("琴键横坐标", layout.noteX.joinToString(" ") { "%.3f".format(it) }) {}
+                    PreferenceItem("琴键纵坐标", "%.3f".format(layout.noteY)) {}
                     PreferenceItem(
                         "模式键",
                         layout.modes.entries.joinToString(" ") { "${it.key.name}=%.3f,%.3f".format(it.value[0], it.value[1]) },
@@ -86,8 +86,8 @@ fun PlaybackDiagnosticsScreen(onBack: () -> Unit, snackbarHostState: SnackbarHos
         }
         item {
             SettingsCard {
-                PreferenceSection("调试") {
-                    PreferenceItem("导出调试 ZIP", "包含最近 15 张游戏截图、日志与设备信息，分享前请确认内容") {
+                PreferenceSection("诊断记录") {
+                    PreferenceItem("导出诊断 ZIP", "含游戏截图、日志和设备信息，分享前请检查") {
                         if (!exporting) scope.launch {
                             exporting = true
                             val ok = DebugExport.exportAndShare(context.applicationContext)
@@ -98,6 +98,6 @@ fun PlaybackDiagnosticsScreen(onBack: () -> Unit, snackbarHostState: SnackbarHos
                 }
             }
         }
-        item { Text("提示：播放前请保持目标游戏界面可见，并确保无障碍、悬浮窗和通知权限均已开启。") }
+        item { Text("播放前请打开游戏琴键界面。") }
     }
 }

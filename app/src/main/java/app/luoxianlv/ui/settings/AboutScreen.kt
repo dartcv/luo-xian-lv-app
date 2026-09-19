@@ -114,7 +114,7 @@ fun AboutScreen(
             Text(if (checkingUpdate) "正在检查…" else "检查新版本", modifier = Modifier.padding(start = 6.dp))
         }
         Text(
-            "落弦律 · 游戏口风琴自动演奏",
+            "落弦律 · 游戏口琴自动演奏",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

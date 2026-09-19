@@ -398,6 +398,15 @@ class MusicAccessibilityService : AccessibilityService() {
         if (resume) play()
     }
 
+    /**
+     * 悬浮窗此刻是否真的显示着。
+     *
+     * 界面用它（而不是持久化偏好）判断「运行中」：服务没连上时窗口一定不存在，
+     * 而 `SongRepository.floatingEnabled` 只是用户意图，可能和现实不一致。
+     */
+    val floatingVisible: Boolean
+        get() = ::floating.isInitialized && floating.isVisible
+
     fun showFloating(enabled: Boolean) {
         repository.floatingEnabled = enabled
         if (enabled) {

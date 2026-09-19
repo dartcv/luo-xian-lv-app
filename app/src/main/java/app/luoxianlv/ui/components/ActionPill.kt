@@ -18,12 +18,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import app.luoxianlv.ui.theme.containerBorder
 
 /**
  * 胶囊操作按钮：本应用统一的主动作样式（「我的」的「启动」定下来的）。
  *
- * `surface` 白底 + 细描边 + 1dp 阴影。之所以不用 `FilledTonalButton`：
+ * `surface` 白底。之所以不用 `FilledTonalButton`：
  * 它的容器色是 `secondaryContainer`（浅蓝 #EAF3FF），压在同为蓝灰的渐变底上
  * 会糊成一片；白色才拉得开对比。
  *
@@ -43,9 +42,9 @@ fun ActionPill(
         modifier = modifier.heightIn(min = if (compact) 46.dp else 56.dp),
         shape = RoundedCornerShape(50),
         color = MaterialTheme.colorScheme.surface,
-        border = containerBorder(),
         // 填充已经半透（见 ON_BACKDROP_SURFACE_ALPHA），
-        // 阴影画在填充之下会透上来把胶囊弄脏，边界交给描边。
+        // 阴影画在填充之下会透上来把胶囊弄脏，所以阴影也不用；
+        // 边界靠半透明填充本身与渐变底的明暗差。
         shadowElevation = 0.dp,
     ) {
         Row(

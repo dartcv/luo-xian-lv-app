@@ -1,6 +1,5 @@
 package app.luoxianlv.ui.theme
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CardElevation
 import androidx.compose.material3.MaterialTheme
@@ -26,7 +25,9 @@ const val ON_BACKDROP_SURFACE_ALPHA = 0.55f
 /**
  * 控件容器当前是否半透明。
  *
- * 判据取 `surface` 的 alpha，因为 [LuoXianLvTheme] 是统一改写容器角色来实现透明度的。
+ * 判据取 `surface` 的 alpha，因为 [LuoXianLvTheme] 统一把 surface 压到
+ * [ON_BACKDROP_SURFACE_ALPHA]。控件透明度调节移除后这恒为 true，
+ * 保留判断是为了将来重新引入不透明容器时，各卡片自动恢复阴影。
  */
 @Composable
 fun translucentContainers(): Boolean = MaterialTheme.colorScheme.surface.alpha < 1f
@@ -37,21 +38,9 @@ fun translucentContainers(): Boolean = MaterialTheme.colorScheme.surface.alpha <
  * 半透明时必须为 0：`Modifier.shadow` 画在填充**之下**，
  * 不透明时被完全盖住，一旦填充半透明，阴影就会透出来，
  * 让卡片发灰、与相邻容器颜色不一致。这也是「包裹器和偏好项颜色不一」的成因之一。
+ *
+ * 边界刻意不用描边补：半透明卡片在亮渐变上靠填充与背景的明暗差就能分层，
+ * 一圈灰线只会把「浮在渐变上的毛玻璃」切成「贴在屏幕上的纸片」。
  */
 @Composable
 fun containerElevation(): CardElevation = CardDefaults.cardElevation(defaultElevation = if (translucentContainers()) 0.dp else 1.dp)
-
-/**
- * 半透明容器的描边，与 [containerElevation] 配对使用。
- *
- * 阴影被拿掉后，卡片就失去了唯一的边界提示：
- * 45% 不透明的浅色卡片叠在图片上会直接「消失」，看不出范围。
- * 这里用一条细描边补回边界，保证任何透明度下卡片的层次都能辨认。
- */
-@Composable
-fun containerBorder(): BorderStroke? =
-    if (translucentContainers()) {
-        BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    } else {
-        null
-    }

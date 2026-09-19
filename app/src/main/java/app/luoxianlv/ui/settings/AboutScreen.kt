@@ -39,7 +39,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.luoxianlv.BuildConfig
 import app.luoxianlv.ui.components.ErrorDialogHost
 import app.luoxianlv.ui.components.NavBarClearance
-import app.luoxianlv.ui.theme.containerBorder
 import app.luoxianlv.ui.theme.containerElevation
 
 /** 关于页：版本信息 + 应用更新检查。 */
@@ -74,7 +73,6 @@ fun AboutScreen(
         Card(
             modifier = Modifier.fillMaxWidth().padding(start = 20.dp, top = 8.dp, end = 20.dp),
             elevation = containerElevation(),
-            border = containerBorder(),
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 28.dp),

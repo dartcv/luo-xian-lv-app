@@ -32,7 +32,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.luoxianlv.data.Song
 import app.luoxianlv.data.timeLabel
-import app.luoxianlv.ui.theme.containerBorder
 import app.luoxianlv.ui.theme.containerElevation
 
 /** 曲目卡片：替代旧版手写 row + bg_song_card/bg_song_card_selected。 */
@@ -55,7 +54,6 @@ fun SongCard(
                     if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
             ),
         elevation = containerElevation(),
-        border = containerBorder(),
     ) {
         Row(
             modifier =
